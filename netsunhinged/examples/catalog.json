@@ -1,0 +1,90 @@
+{
+  "categories": [
+    "Carboxylate MOFs",
+    "Zeolitic imidazolate frameworks (ZIFs)",
+    "Zeolites"
+  ],
+  "source": "Crystallography Open Database (COD), CC0. Please cite the original authors.",
+  "structures": {
+    "MOF-5_COD-7240544.cif": {
+      "category": "Carboxylate MOFs",
+      "name": "MOF-5 (IRMOF-1)",
+      "note": "rigid reference",
+      "id": "COD 7240544",
+      "ref": "Villemot et al., RSC Advances 2020, 10, 18418",
+      "doi": "10.1039/D0RA02509G"
+    },
+    "HKUST-1_COD-4128729.cif": {
+      "category": "Carboxylate MOFs",
+      "name": "HKUST-1 (Cu-BTC)",
+      "note": "rigid reference",
+      "id": "COD 4128729",
+      "ref": "Scatena et al., J. Am. Chem. Soc. 2019, 141, 9382",
+      "doi": "10.1021/jacs.9b03643"
+    },
+    "DMOF-1_COD-7038645.cif": {
+      "category": "Carboxylate MOFs",
+      "name": "DMOF-1",
+      "note": "pillared paddlewheel, shear",
+      "id": "COD 7038645",
+      "ref": "Kim et al., Dalton Trans. 2016, 45, 4187",
+      "doi": "10.1039/c5dt03710g"
+    },
+    "MIL-53-Ga_COD-7000776.cif": {
+      "category": "Carboxylate MOFs",
+      "name": "MIL-53(Ga)",
+      "note": "breathing",
+      "id": "COD 7000776",
+      "ref": "Volkringer et al., Dalton Trans. 2009, 2241",
+      "doi": "10.1039/b817563b"
+    },
+    "ZIF-7_COD-4121899.cif": {
+      "category": "Zeolitic imidazolate frameworks (ZIFs)",
+      "name": "ZIF-7",
+      "note": "gate opening",
+      "id": "COD 4121899",
+      "ref": "Cai et al., J. Am. Chem. Soc. 2014, 136, 7961",
+      "doi": "10.1021/ja5016298"
+    },
+    "ZIF-8_COD-7111971.cif": {
+      "category": "Zeolitic imidazolate frameworks (ZIFs)",
+      "name": "ZIF-8",
+      "note": "linker swing",
+      "id": "COD 7111971",
+      "ref": "Shekhah et al., Chem. Commun. 2014, 50, 2089",
+      "doi": "10.1039/c3cc47495j"
+    },
+    "rho-ZnIm2_COD-4132678.cif": {
+      "category": "Zeolitic imidazolate frameworks (ZIFs)",
+      "name": "rho-Zn(Im)₂",
+      "note": "RHO net",
+      "id": "COD 4132678",
+      "ref": "Brekalo et al., J. Am. Chem. Soc. 2018, 140, 10104",
+      "doi": "10.1021/jacs.8b05471"
+    },
+    "Zeolite-A_COD-1532589.cif": {
+      "category": "Zeolites",
+      "name": "Zeolite A (LTA), Rb/K form",
+      "note": "comparatively rigid",
+      "id": "COD 1532589",
+      "ref": "Ikeda et al., Stud. Surf. Sci. Catal. 2001, 135, 3416",
+      "doi": ""
+    },
+    "Natrolite_COD-9013163.cif": {
+      "category": "Zeolites",
+      "name": "Natrolite (NAT), dehydrated",
+      "note": "flexible",
+      "id": "COD 9013163",
+      "ref": "Wang et al., Am. Mineral. 2008, 93, 1191",
+      "doi": "10.2138/am.2008.2949"
+    },
+    "Zeolite-Rho_COD-1530545.cif": {
+      "category": "Zeolites",
+      "name": "Zeolite Rho (RHO), Cs form",
+      "note": "highly flexible",
+      "id": "COD 1530545",
+      "ref": "Parise et al., J. Phys. Chem. 1984, 88, 2303",
+      "doi": ""
+    }
+  }
+}

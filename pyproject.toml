@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "netsunhinged"
+dynamic = ["version"]
+description = "Is your net unhinged? Rigid-body / hinge flexibility analysis of framework materials (MOFs, ZIFs, zeolites)"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "netsunhinged/static/vendor/three/LICENSE"]
+authors = [{ name = "Jan-Benedikt Weiss" }]
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.22", "scipy>=1.8"]
+keywords = ["metal-organic frameworks", "MOF", "zeolites", "flexibility", "rigidity", "crystallography", "CIF"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+[project.optional-dependencies]
+server = ["gunicorn>=22"]          # production web server, only needed for hosting
+dev = ["pytest>=7"]
+
+[project.scripts]
+netsunhinged = "netsunhinged.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/JBWeiss-chem/netsunhinged"
+Issues = "https://github.com/JBWeiss-chem/netsunhinged/issues"
+
+[tool.setuptools.packages.find]
+# includes the data folders (static/, examples/) as namespace packages, so their files are shipped
+include = ["netsunhinged*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "netsunhinged.__version__" }
+
+[tool.setuptools.package-data]
+# the web front end (incl. the bundled three.js) and the example structures ship with the package
+netsunhinged = ["static/**/*", "examples/*.cif", "examples/*.json", "examples/*.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

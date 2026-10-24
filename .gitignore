@@ -1,0 +1,21 @@
+# Never publish these: copyrighted articles, unpublished structures, CSD/IZA downloads
+papers/
+test_cifs/
+examples_local/
+*.pdf
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+
+# local tools and OS files
+.claude/
+.idea/
+.vscode/
+.DS_Store

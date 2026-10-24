@@ -1,0 +1,36 @@
+cff-version: 1.2.0
+message: "If you use NetsUnhinged, please cite it as below, together with the method paper by Sarkisov et al."
+title: "NetsUnhinged: rigid-body / hinge flexibility analysis of framework materials"
+type: software
+authors:
+  - family-names: "Weiss"
+    given-names: "Jan-Benedikt"
+    affiliation: "TU Dortmund University"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"
+license: MIT
+version: 0.1.0
+date-released: "2026-10-23"
+repository-code: "https://github.com/JBWeiss-chem/netsunhinged"
+keywords:
+  - metal-organic frameworks
+  - zeolites
+  - flexibility
+  - rigidity
+  - crystallography
+references:
+  - type: article
+    title: "On the Flexibility of Metal–Organic Frameworks"
+    authors:
+      - family-names: "Sarkisov"
+        given-names: "Lev"
+      - family-names: "Martin"
+        given-names: "Richard L."
+      - family-names: "Haranczyk"
+        given-names: "Maciej"
+      - family-names: "Smit"
+        given-names: "Berend"
+    journal: "Journal of the American Chemical Society"
+    year: 2014
+    volume: 136
+    start: 2228
+    doi: "10.1021/ja411673b"

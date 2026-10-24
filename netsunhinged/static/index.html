@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NetsUnhinged</title>
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": {
+    "three": "./vendor/three/three.module.min.js",
+    "three/addons/": "./vendor/three/addons/"
+} }
+</script>
+</head>
+<body>
+<header>
+  <div class="brand">NetsUnhinged <span>rigid-body / hinge flexibility analysis of framework materials (MOFs, ZIFs, zeolites …) — based on
+    L. Sarkisov, R. L. Martin, M. Haranczyk, B. Smit, <i>J. Am. Chem. Soc.</i> <b>2014</b>, 136, 2228
+    (<a href="https://doi.org/10.1021/ja411673b" target="_blank" rel="noopener">doi:10.1021/ja411673b</a>)</span></div>
+  <div class="hdr-actions">
+    <label class="btn"><input type="file" id="file" accept=".cif" hidden>Open CIF…</label>
+    <select id="examples"><option value="">Examples…</option></select>
+    <a class="gh" href="https://github.com/JBWeiss-chem/netsunhinged" target="_blank" rel="noopener"
+       title="Source code on GitHub" aria-label="Source code on GitHub">
+      <svg viewBox="0 0 16 16" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg>
+    </a>
+  </div>
+</header>
+
+<main>
+  <!-- ======================= left: structure + degrees of freedom -->
+  <aside id="left">
+    <section class="card">
+      <h2><span class="num">1</span>Structure <i class="info" data-tip="Bonds are assigned from covalent radii (+0.45 Å). Analysed: atoms in closed loops of the bonded framework. Dangling: H and terminal groups (e.g. methyl, terminal nitrile); they add no constraints to the model and are carried along rigidly (sterically they can still hinder a motion). Guests: atoms not bonded to the framework (solvent, counter-ions); they are never part of the analysis."></i></h2>
+      <div id="structInfo" class="muted">Load a CIF file to start.</div>
+      <button id="removeGuests" class="small" hidden>Remove guests</button>
+      <div id="warnings"></div>
+    </section>
+
+    <section class="card">
+      <h2><span class="num">2</span>Degrees of freedom (DOFs) <i class="info" data-tip="By default all bond lengths and bond angles are fixed. Ticking an atom removes the constraint on its bond angles (the atom becomes a pivot or ball joint). Ticking a bond removes the constraint on the torsion about it (a hinge). The model is all-or-nothing: a released angle or torsion can change at no cost in the model, whereas in the material it is merely softer than the rest. Click atoms or bonds in the viewer to edit them there."></i></h2>
+      <div class="presets">
+        <div class="row gap wrap"><span class="muted">Model presets</span>
+          <button id="resetDefaults" class="small">Carboxylate hinges</button>
+          <button id="resetZeolite" class="small">Rigid tetrahedra</button>
+          <button id="presetRigid" class="small">All angles rigid</button>
+          <i class="info" data-tip="Starting points that you can then edit in the tables. Carboxylate hinges (Sarkisov–Smit): rigid SBUs plus flexible M–O–C angles at carboxylate-type O, which gives the paper's O···O hinge. Rigid tetrahedra: TO4 tetrahedra (T = Si, Al, P, Ge …) rigid, T–O–T angles flexible: the rigid-unit model of zeolites. All angles rigid: the baseline. On loading, the preset is chosen from the motifs found in the structure; the line below says which and why. A preset is greyed out if its motif is absent."></i></div>
+        <div id="presetInfo" class="preset-info"></div>
+      </div>
+      <div class="row sbu-row"><label class="sbu-main"><input type="checkbox" id="rigidSbu"> <b>Rigid inorganic SBUs</b> <i class="info" data-tip="Ticked: each metal cluster (metals and their donor atoms) is one rigid block, as in Sarkisov et al. (all sites within the cutoff are connected by rigid bars).&#10;Unticked: the bond angles inside the clusters (at the metals and at atoms bonded only to metals, e.g. μ-O) are ticked as flexible below.&#10;A partly filled box means some metals were made flexible by hand: their SBUs are released."></i></label>
+        <label class="sbu-cut">cutoff <input type="number" id="sbuCutoff" value="5.0" step="0.5" min="2" max="10"> Å</label></div>
+      <p class="hint">Rows fixed by a rigid SBU are marked <span class="pill sbu">SBU</span>.</p>
+
+      <h3><i class="sw" style="background:var(--hl-flex)"></i>Atoms: flexible bond angles <i class="info" data-tip="One row per CIF label (all symmetry copies together).&#10;Ticked: all bond angles at this atom are unconstrained in the model.&#10;Unticked: its bond angles are fixed.&#10;Typical soft choices: carboxylate O (the M–O–C angle gives the paper's O···O hinge), low-coordinate metals such as Cu(I) or Zn, azolate N, and the bridging O between tetrahedra in zeolites (T–O–T). ⚲ marks carboxylate-type donors. Rows not involving a metal or a tetrahedral centre are greyed."></i></h3>
+      <div class="tablewrap"><table id="labelTable"><thead><tr>
+        <th>label</th><th>environment</th><th>n</th><th title="flexible bond angles: the atom becomes a pivot">flex</th></tr></thead>
+        <tbody></tbody></table></div>
+
+      <h3><i class="sw" style="background:var(--hl-hinge)"></i>Bonds: rotatable (hinge) <i class="info" data-tip="Ticked: the torsion about this bond is unconstrained in the model (a hinge).&#10;Unticked: the torsion is locked.&#10;The automatic choice (column 'auto') locks bonds in planar rings and short conjugated or multiple bonds, and leaves all other single bonds rotatable. ↺ resets a manual choice."></i></h3>
+      <div class="tablewrap"><table id="bondTable"><thead><tr>
+        <th>bond</th><th>n</th><th title="automatic suggestion">auto</th><th title="Ticked: rotatable (torsion unconstrained, hinge)&#10;Unticked: locked">rot.</th></tr></thead>
+        <tbody></tbody></table></div>
+      <p class="hint">Rows not involving a metal or a tetrahedral centre (Si, Al, P …) are greyed (they rarely matter). Click atoms/bonds in the viewer to edit them there.</p>
+      <div class="row gap">
+        <button id="exportOpts" class="small">Export DOF settings</button>
+        <label class="btn small"><input type="file" id="importOpts" accept=".json" hidden>Import…</label>
+      </div>
+    </section>
+  </aside>
+
+  <!-- ======================= centre: viewer -->
+  <section id="viewerWrap">
+    <div id="viewer"></div>
+    <div id="toolbar">
+      <label>Colour
+        <select id="colorMode">
+          <option value="element">element</option>
+          <option value="body">rigid bodies</option>
+          <option value="role">framework / removed</option>
+        </select>
+      </label>
+      <label title="colour flexible-angle atoms and rotatable bonds (the chosen degrees of freedom, DOFs)"><input type="checkbox" id="showDof" checked> highlight DOFs</label>
+      <label class="sc">Cells <input type="number" id="scA" min="1" max="8" value="2">×<input type="number" id="scB" min="1" max="8" value="2">×<input type="number" id="scC" min="1" max="8" value="2">
+        <button class="small" id="scCube" type="button" title="repeat counts that give a roughly cubic box">≈ cube</button>
+        <span id="scInfo" class="muted"></span>
+        <i class="info" data-tip="Number of unit cells shown along a, b and c (1–8 each). To keep the viewer responsive, at most 40 000 atoms are drawn; larger requests are refused. '≈ cube' picks repeat counts that give a roughly cubic box, useful for needle- or plate-shaped cells."></i></label>
+      <label><input type="checkbox" id="showJoints" checked> joints</label>
+      <label><input type="checkbox" id="showH" checked> H atoms</label>
+      <label><input type="checkbox" id="showGuests" checked> guests</label>
+      <label title="draw bonded atoms just outside the cell"><input type="checkbox" id="boundaryAtoms" checked> boundary atoms</label>
+      <label><input type="checkbox" id="whiteBg"> white</label>
+      <label><input type="checkbox" id="topology"> topology <i class="info" data-tip="Reduced net drawn with lines only, between the centroids of the building blocks (inorganic nodes and organic linkers)."></i></label>
+      <label>ortho
+        <input type="range" id="persp" min="0" max="1" step="0.01" value="0"> persp. <i class="info" data-tip="Left end: true orthographic projection, so the cell edges stack exactly when you look along a, b or c (buttons on the right). Further right: increasing perspective at constant framed size."></i></label>
+      <span class="sep"></span>
+      <span class="views" title="view along a, b or c">
+        <button class="small" data-view="a">a</button>
+        <button class="small" data-view="b">b</button>
+        <button class="small" data-view="c">c</button>
+      </span>
+      <button class="small" id="savePng">PNG</button>
+    </div>
+    <div id="legend"></div>
+    <div id="animBar" hidden>
+      <span id="animTitle"></span>
+      <label>amplitude <input type="range" id="animAmp" min="0.1" max="3" step="0.1" value="1"></label>
+      <select class="fmt" id="animFmt" title="export format"></select>
+      <button class="small" id="animExport">Export</button>
+      <button class="small" id="animStop">Stop</button>
+    </div>
+    <div id="frameBar" hidden>
+      <span id="frameTitle"></span>
+      <input type="range" id="frameSlider" min="0" max="10" step="1" value="5">
+      <span id="frameInfo"></span>
+      <button class="small" id="frameCif">Save CIF</button>
+      <select class="fmt" id="pathFmt" title="export the whole path"></select>
+      <button class="small" id="pathExport" title="export all frames of this path">Export path</button>
+      <button class="small" id="frameStop">Original</button>
+    </div>
+    <div id="tooltip" hidden></div>
+    <div id="selection" hidden></div>
+  </section>
+
+  <!-- ======================= right: analysis -->
+  <aside id="right">
+    <section class="card">
+      <h2><span class="num">3</span>Mechanical model <i class="info" data-tip="Rigid units sharing at least 3 non-collinear atoms are fused into rigid bodies. Two bodies sharing 2 atoms form a hinge; sharing 1 atom, a ball joint. Colour by 'rigid bodies' to see them; hinge axes and ball joints are drawn in purple."></i></h2>
+      <div id="modelInfo" class="muted">–</div>
+    </section>
+    <section class="card">
+      <h2><span class="num">4</span>Infinitesimal mechanisms <i class="info" data-tip="Exact linear analysis of the rigid-body model: deformations that, to first order, keep every rigid body undistorted and every joint closed (mechanisms), with the 6 cell-strain components as unknowns. They are free only within the model: in the real material, bending of the freed angles and torsions, non-bonded interactions and guests still resist them, so they are soft directions, not zero-energy ones. Cell-changing modes are candidates for breathing or shear; internal modes are local motions such as linker rotations. A first-order mode may still be blocked at larger amplitude: check it with the finite test ('follow infinitesimal modes')."></i></h2>
+      <div id="infInfo" class="muted">–</div>
+    </section>
+    <section class="card">
+      <h2><span class="num">5</span>Finite deformation test <i class="info" data-tip="The method of Sarkisov et al.: the cell is perturbed in 13 regimes. For each d the rigid bodies are relaxed by least squares, and a regime counts as flexible if the joints can be closed again almost completely (very small remaining joint mismatch). This is a geometric test of the model, not a calculation of the deformation energy of the material. Click a regime row to view the relaxed structures and the path graphs."></i></h2>
+      <div class="settings">
+        <span class="sl">range of d <i class="info" data-tip="Order parameter d scales the perturbed cell parameters: a* = d·a, γ* = d·γ … The paper scans 0.90–1.10. Smaller steps give smoother curves but take longer."></i></span>
+        <span class="sv"><input type="number" id="dmin" value="0.90" step="0.01"> – <input type="number" id="dmax" value="1.10" step="0.01">
+          step <input type="number" id="step" value="0.02" step="0.01" min="0.005"></span>
+        <span class="sl">metric <i class="info" data-tip="E is the joint mismatch: the mean squared gap (Å² per joint) between rigid bodies that should share an atom. Relative F = E_relaxed / E_affine: mismatch left after relaxing the bodies, divided by the mismatch before any relaxation. Scale-free: mechanisms of the model give F ≈ 1e-27…1e-4, rigid responses 0.1–1. Absolute E plays the role of the energy in the paper, but its scale differs from the paper's. Neither is a physical energy of the material."></i></span>
+        <span class="sv"><select id="metric">
+          <option value="relative">relative F = E/E_affine</option>
+          <option value="absolute">absolute E (Å²/joint)</option></select></span>
+        <span class="sl">thresholds <i class="info" data-tip="Flexible: metric below the first threshold over the whole range of d. Semi-flexible: below it only on one side of d = 1 or on a limited interval, or below the second threshold everywhere. Rigid: otherwise. Same logic as the paper (E < 0.01 / E′ < 0.05)."></i></span>
+        <span class="sv">flexible &lt; <input type="number" id="thr" value="0.01" step="0.005"> semi &lt; <input type="number" id="thr2" value="0.05" step="0.01"></span>
+      </div>
+      <label class="chk"><input type="checkbox" id="followModes" checked> follow infinitesimal modes
+        <i class="info" data-tip="Ticked: the scan also follows the strain direction of each infinitesimal mechanism (rows 'Mode k').&#10;This is needed when a mechanism changes several cell parameters together in a way none of the 13 regimes allows."></i></label>
+      <label class="chk"><input type="checkbox" id="extended"> fully relaxed regimes (A* … Gamma*)
+        <i class="info" data-tip="Ticked: six extra regimes are run, in each of which one cell parameter is perturbed and all other five are relaxed."></i></label>
+      <button id="run" class="primary" disabled>Run 13-regime analysis</button>
+      <div id="progress" hidden><div></div></div>
+      <div id="verdict"></div>
+      <div id="plot"></div>
+      <div class="tablewrap tall"><table id="regTable"><thead><tr>
+        <th>regime</th><th>result</th><th>max</th><th title="unit-cell volume change over the scanned range">ΔV %</th></tr></thead><tbody></tbody></table></div>
+      <button id="exportRes" class="small" hidden>Export results (JSON)</button>
+    </section>
+    <section class="card" id="graphCard" hidden>
+      <h2><span class="num">6</span>Path details: <span id="graphTitle"></span> <i class="info" data-tip="Changes along the selected path relative to the original structure (d = 1). For every angle or torsion type the instance that changes most is plotted; n is the number of instances. The dashed line marks the frame shown in the viewer."></i></h2>
+      <p class="hint" id="graphHint"></p>
+      <div id="regGraphs"></div>
+    </section>
+  </aside>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

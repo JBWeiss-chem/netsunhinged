@@ -1,0 +1,18 @@
+# keep the image small and free of material that must not be published
+# (comments must be on their own line in .dockerignore)
+# copyrighted articles
+papers
+# unpublished / private structures and CSD/IZA downloads
+test_cifs
+examples_local
+tests
+deploy
+.claude
+.git
+**/__pycache__
+**/*.pyc
+**/.DS_Store
+# build output
+build
+dist
+*.egg-info

@@ -1,0 +1,5 @@
+# replace the domain; Caddy obtains and renews the HTTPS certificate automatically
+netsunhinged.example.org {
+    encode gzip
+    reverse_proxy 127.0.0.1:8765
+}

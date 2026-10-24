@@ -1,0 +1,3 @@
+# extra files for the source distribution (the wheel only contains the package)
+include CITATION.cff
+include tests/*.py

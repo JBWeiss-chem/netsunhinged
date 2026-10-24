@@ -1,0 +1,102 @@
+#------------------------------------------------------------------------------
+#$Date: 2016-03-24 17:19:21 +0200 (Thu, 24 Mar 2016) $
+#$Revision: 179685 $
+#$URL: file:///home/coder/svn-repositories/_RELOADED_COD/cod-reloaded/cif/7/00/07/7000776.cif $
+#------------------------------------------------------------------------------
+#
+# This file is available in the Crystallography Open Database (COD),
+# http://www.crystallography.net/
+#
+# All data on this site have been placed in the public domain by the
+# contributors.
+#
+data_7000776
+loop_
+_publ_author_name
+'Volkringer, Christophe'
+'Loiseau, Thierry'
+'Guillou, Nathalie'
+'F\'erey, G\'erard'
+'Elka\"im, Erik'
+'Vimont, Alexandre'
+_publ_section_title
+;
+ XRD and IR structural investigations of a particular breathing effect
+ in the MOF-type gallium terephthalate MIL-53(Ga)
+;
+_journal_issue                   12
+_journal_name_full               'Dalton Transactions'
+_journal_page_first              2241
+_journal_page_last               2249
+_journal_paper_doi               10.1039/b817563b
+_journal_year                    2009
+_chemical_name_common            'Gallium terephthalate'
+_space_group_IT_number           14
+_symmetry_space_group_name_Hall  '-P 2ybc'
+_symmetry_space_group_name_H-M   'P 1 21/c 1'
+_cell_angle_alpha                90
+_cell_angle_beta                 103.79364(83)
+_cell_angle_gamma                90
+_cell_length_a                   19.70530(22)
+_cell_length_b                   15.16417(43)
+_cell_length_c                   6.681171(94)
+_cell_volume                     1938.86(7)
+_cod_data_source_file            b817563b.txt
+_cod_data_source_block           2
+_cod_original_cell_volume        1938.855(66)
+_cod_original_sg_symbol_H-M      P21/c
+_cod_database_code               7000776
+loop_
+_symmetry_equiv_pos_as_xyz
+'-x, -y, -z'
+'-x, y+1/2, -z+1/2'
+'x, -y+1/2, z+1/2'
+'x, y, z'
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_symmetry_multiplicity
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+_atom_site_B_iso_or_equiv
+Ga1 Ga+3 4 0.49568(22) 0.25396(53) 0.51496(65) 1 1.151(42)
+Ga2 Ga+3 4 0 0.5 0 1 1.151(42)
+Ga3 Ga+3 4 0 0 0 1 1.151(42)
+O1 O-2 4 0.4990(12) 0.1890(23) 0.7708(34) 1 1.58(10)
+O2 O-2 4 -0.0001(13) 0.4364(23) 0.7464(44) 1 1.58(10)
+O11 O-2 4 0.08732169 0.5660255 -0.3777577 1 1.58(10)
+O12 O-2 4 0.06561105 0.5784208 -0.07093795 1 1.58(10)
+O13 O-2 4 0.4389728 0.6570335 0.04597103 1 1.58(10)
+O14 O-2 4 0.4169712 0.6714184 0.3519975 1 1.58(10)
+O21 O-2 4 0.4085496 0.1923123 0.367062 1 1.58(10)
+O22 O-2 4 0.4370978 0.1513548 0.08206295 1 1.58(10)
+O23 O-2 4 0.05926473 0.09746706 -0.08140812 1 1.58(10)
+O24 O-2 4 0.08870997 0.04889531 -0.3592515 1 1.58(10)
+C11 C 4 0.1831284 0.6001408 -0.09589053 1 1.25(11)
+C12 C 4 0.2291694 0.6039404 -0.2202988 1 1.25(11)
+C13 C 4 0.2982602 0.6220242 -0.13709 1 1.25(11)
+C14 C 4 0.32131 0.6363083 0.07052697 1 1.25(11)
+C15 C 4 0.275269 0.6325087 0.1949352 1 1.25(11)
+C16 C 4 0.2061782 0.6144249 0.1117265 1 1.25(11)
+C17 C 4 0.1084902 0.580605 -0.1857803 1 1.25(11)
+C18 C 4 0.3959482 0.655844 0.1604167 1 1.25(11)
+H12 H 4 0.2126812 0.5937225 -0.3688131 1 2
+H13 H 4 0.3311946 0.6247421 -0.2260828 1 2
+H15 H 4 0.2917571 0.6427265 0.3434495 1 2
+H16 H 4 0.1732438 0.6117069 0.2007192 1 2
+C21 C 4 0.3169716 0.1418981 0.08956288 1 1.25(11)
+C22 C 4 0.2673006 0.1542118 0.1996311 1 1.25(11)
+C23 C 4 0.1987345 0.1348211 0.1121846 1 1.25(11)
+C24 C 4 0.1798394 0.1031166 -0.08533021 1 1.25(11)
+C25 C 4 0.2295104 0.09080289 -0.1953984 1 1.25(11)
+C26 C 4 0.2980765 0.1101937 -0.1079519 1 1.25(11)
+C27 C 4 0.3910431 0.1628458 0.1840307 1 1.25(11)
+C28 C 4 0.105768 0.08216888 -0.179798 1 1.25(11)
+H22 H 4 0.2808169 0.1768909 0.3409191 1 2
+H23 H 4 0.1632034 0.1436294 0.1909195 1 2
+H25 H 4 0.2159942 0.06812378 -0.3366864 1 2
+H26 H 4 0.3336076 0.1013853 -0.1866868 1 2
+Ow1 O-2 4 0.5111(14) 0.0198(15) 0.6933(36) 1 4.28(37)
+Ow2 O-2 4 0.9690(10) 0.2405(19) 0.3280(32) 1 4.28(37)
