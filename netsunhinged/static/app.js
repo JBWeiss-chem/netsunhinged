@@ -30,9 +30,18 @@ const esc = (v) => String(v).replace(/[&<>"'`]/g, (c) => ESC[c]);
 
 // ------------------------------------------------------------------ three.js
 const viewer = $('viewer');
-const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-renderer.setPixelRatio(window.devicePixelRatio);
+// no preserveDrawingBuffer: the PNG export renders and reads the image in one step
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+// HiDPI screens: at most 2 device pixels per CSS pixel (4K laptops report up to 3); large scenes
+// drop to 1 while the view is dragged and return to full sharpness on release
+const MAX_PIXEL_RATIO = 2;
+const fullPixelRatio = () => Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+renderer.setPixelRatio(fullPixelRatio());
 viewer.appendChild(renderer.domElement);
+// The scene is drawn only when something has changed (camera, content, colours, size, animation),
+// not on every display refresh, so an idle viewer costs no GPU time.
+let needsRender = true;
+function requestRender() { needsRender = true; }
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#11151d');
 // Two cameras: the perspective slider dolly-zooms the perspective camera (keeping the framed
@@ -44,6 +53,7 @@ let camera = perspCam;
 camera.position.set(30, 25, 40);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = false;           // direct, unsmoothed response to the mouse
+controls.addEventListener('change', requestRender);
 scene.add(new THREE.AmbientLight(0xffffff, 0.55));
 const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
 camera.add(keyLight);
@@ -83,6 +93,7 @@ function placeCamera(h, dir, up) {
   camera.updateProjectionMatrix();
   if (prev !== camera) { camera.add(keyLight); controls.object = camera; }
   controls.update();
+  requestRender();
 }
 $('persp').oninput = () => {
   const dir = camera.position.clone().sub(controls.target).normalize();
@@ -118,6 +129,7 @@ function setCompassInk() {
   const ink = compassInk();
   axArrows.forEach((a) => a.setColor(ink));
   axLabels.forEach((sp, i) => { sp.material.map.dispose(); sp.material.map = labelTexture('abc'[i], ink); sp.material.needsUpdate = true; });
+  requestRender();
 }
 function updateCompass(L) {
   L.forEach((v, i) => {
@@ -148,6 +160,12 @@ function renderCompass() {
 
 const sphereGeo = new THREE.SphereGeometry(1, 20, 14);
 const cylGeo = new THREE.CylinderGeometry(1, 1, 1, 10, 1);
+// large scenes: atoms are then only a few pixels wide, so coarser shapes look the same and
+// cut the triangle count about 4-fold (spheres) and 1.7-fold (bonds)
+const LARGE_SCENE = 8000;                 // drawn atoms
+const sphereGeoCoarse = new THREE.SphereGeometry(1, 10, 7);
+const cylGeoCoarse = new THREE.CylinderGeometry(1, 1, 1, 6, 1);
+let largeScene = false;
 const material = new THREE.MeshStandardMaterial({ roughness: 0.45, metalness: 0.05 });
 const jointMat = new THREE.MeshStandardMaterial({ color: '#CC79A7', roughness: 0.4, transparent: true, opacity: 0.9 });
 const ballMat = new THREE.MeshStandardMaterial({ color: '#CC79A7', roughness: 0.4, transparent: true, opacity: 0.3, depthWrite: false });
@@ -160,7 +178,9 @@ let topoT = 0;
 
 new ResizeObserver(() => {
   const w = viewer.clientWidth, h = viewer.clientHeight;
+  renderer.setPixelRatio(fullPixelRatio());   // e.g. after moving the window to another screen
   renderer.setSize(w, h);
+  requestRender();
   perspCam.aspect = w / Math.max(h, 1);
   perspCam.updateProjectionMatrix();
   const hh = orthoCam.top - orthoCam.bottom;
@@ -215,6 +235,7 @@ function buildScene() {
   [atomMesh, bondMesh, hingeMesh, ballMesh, topoEdgeMesh].forEach(disposeMesh);
   if (cellLines) { root.remove(cellLines); cellLines.geometry.dispose(); }
   atomMesh = bondMesh = hingeMesh = ballMesh = topoEdgeMesh = null;
+  requestRender();
   if (!S.st) return;
   const imgs = images();
   atomInst = []; bondInst = []; hingeInst = []; ballInst = []; topoEdgeInst = [];
@@ -250,8 +271,9 @@ function buildScene() {
       });
     }
   }
-  atomMesh = new THREE.InstancedMesh(sphereGeo, material, Math.max(atomInst.length, 1));
-  bondMesh = new THREE.InstancedMesh(cylGeo, material, Math.max(bondInst.length, 1));
+  largeScene = atomInst.length > LARGE_SCENE;
+  atomMesh = new THREE.InstancedMesh(largeScene ? sphereGeoCoarse : sphereGeo, material, Math.max(atomInst.length, 1));
+  bondMesh = new THREE.InstancedMesh(largeScene ? cylGeoCoarse : cylGeo, material, Math.max(bondInst.length, 1));
   atomMesh.count = atomInst.length; bondMesh.count = bondInst.length;
   root.add(atomMesh, bondMesh);
   if (hingeInst.length) { hingeMesh = new THREE.InstancedMesh(cylGeo, jointMat, hingeInst.length); root.add(hingeMesh); }
@@ -353,6 +375,7 @@ function updateMatrices() {
   cellLines.geometry.computeBoundingSphere();
   updateCompass(L);
   atomMesh.computeBoundingSphere(); bondMesh.computeBoundingSphere();
+  requestRender();
 }
 
 // ------------------------------------------------------------------ colours
@@ -402,6 +425,7 @@ function updateColors() {
   topoEdgeInst.forEach((it, k) => topoEdgeMesh.setColorAt(k, _c.set(unitColor(it.a))));
   if (topoEdgeMesh.instanceColor) topoEdgeMesh.instanceColor.needsUpdate = true;
   renderLegend();
+  requestRender();
 }
 function renderLegend() {
   const L = $('legend');
@@ -465,7 +489,17 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   updateColors();
 });
 let hoverT = 0;
+let dragLowRes = false;
 renderer.domElement.addEventListener('pointermove', (e) => {
+  if (e.buttons) {
+    // rotating / panning: no hover picking (it tests every atom and bond), and large scenes
+    // render at 1 device pixel per CSS pixel until the button is released
+    $('tooltip').hidden = true;
+    if (largeScene && !dragLowRes && fullPixelRatio() > 1) {
+      dragLowRes = true; renderer.setPixelRatio(1); requestRender();
+    }
+    return;
+  }
   const now = performance.now();
   if (now - hoverT < 60) return;
   hoverT = now;
@@ -484,6 +518,10 @@ renderer.domElement.addEventListener('pointermove', (e) => {
   tt.hidden = false;
 });
 renderer.domElement.addEventListener('pointerleave', () => { $('tooltip').hidden = true; });
+// the button may be released outside the viewer
+window.addEventListener('pointerup', () => {
+  if (dragLowRes) { dragLowRes = false; renderer.setPixelRatio(fullPixelRatio()); requestRender(); }
+});
 
 // ------------------------------------------------------------------ selection panel
 function labelsWithEnv(env) {
@@ -759,12 +797,17 @@ function loop(t) {
   const blending = topoT !== target;
   if (blending) topoT = target > topoT ? Math.min(1, topoT + dt / 0.4) : Math.max(0, topoT - dt / 0.4);
   if (S.anim) S.anim.t += dt;
-  if (S.st && (S.anim || blending)) updateMatrices();
-  renderer.render(scene, camera);
-  if (S.st) renderCompass();
+  if (S.st && (S.anim || blending)) updateMatrices();        // requests a render
+  if (needsRender) {
+    needsRender = false;
+    renderer.render(scene, camera);
+    if (S.st) renderCompass();
+  }
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
+// safety net: any use of a control may change the picture (and the bars the compass avoids)
+['input', 'change', 'click'].forEach((t) => document.addEventListener(t, requestRender, true));
 
 // ------------------------------------------------------------------ finite deformation
 $('run').onclick = async () => {
