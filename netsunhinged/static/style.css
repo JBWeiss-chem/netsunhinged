@@ -76,6 +76,21 @@ td select { font-size: 11px; padding: 0; }
 .tag.flexible { background: var(--flex); } .tag.semi-flexible { background: var(--semi); color: var(--semi-ink); }
 .tag.rigid { background: var(--rigid); }
 #removeGuests { margin-top: 6px; }
+#structList { display: flex; flex-direction: column; gap: 3px; max-height: 168px; overflow-y: auto; margin-bottom: 8px; }
+#structList .sitem { display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: 6px; background: #f8f9fb; flex: none; }
+#structList .sitem:hover { border-color: #c4cad4; }
+#structList .sitem.active { border-color: var(--accent); background: #eaf1fd; }
+#structList .sitem.loading { opacity: .6; }
+#structList button { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; border-radius: 6px; }
+#structList .pick { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 8px; text-align: left; }
+#structList .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; min-width: 0; }
+#structList .active .nm { font-weight: 600; }
+#structList .file { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 0; min-width: 2em; text-align: right; }
+#structList .mark { width: 8px; height: 8px; border-radius: 50%; flex: none; background: transparent; border: 1px solid transparent; }
+#structList .mark.running { border-color: var(--accent); border-right-color: transparent; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#structList .x { padding: 0 8px; color: var(--muted); font-size: 15px; line-height: 1; }
+#structList .x:hover, #structList .x:focus-visible { color: var(--ink); }
 .warn { background: #fff4e5; border: 1px solid #f5c26b; border-radius: 6px; padding: 4px 8px; margin-top: 6px; font-size: 12px; }
 #viewerWrap { position: relative; min-width: 0; background: var(--viewer); }
 #viewer { position: absolute; inset: 0; }

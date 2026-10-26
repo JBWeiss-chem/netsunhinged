@@ -349,17 +349,26 @@ def cell_matrix(a, b, c, alpha, beta, gamma) -> np.ndarray:
     return np.array([ax, bx, [cx, cy, cz]])
 
 
+def _structure_blocks(blocks):
+    """The data blocks that hold a structure (an atom-site loop with fractional coordinates)."""
+    return [b for b in blocks if any("_atom_site_fract_x" in tags for tags, _ in b[2])]
+
+
+def cif_block_names(text: str) -> list:
+    """Names of the structures in a CIF, in file order (the indices read_cif's block refers to)."""
+    return [safe_text(b[0]) or f"structure {k + 1}"
+            for k, b in enumerate(_structure_blocks(_parse_blocks(text)))]
+
+
 def read_cif(text: str, merge_tol: float = 0.25, disorder_merge: float = 0.7,
-             max_atoms: int | None = None) -> CifData:
-    blocks = _parse_blocks(text)
-    block = None
-    for b in blocks:
-        if any("_atom_site_fract_x" in tags for tags, _ in b[2]):
-            block = b
-            break
-    if block is None:
+             max_atoms: int | None = None, block: int = 0) -> CifData:
+    """Read structure number `block` (0-based, counting only data blocks with atom sites)."""
+    blocks = _structure_blocks(_parse_blocks(text))
+    if not blocks:
         raise ValueError("no data block with _atom_site_fract_x found")
-    name, items, loops = block
+    if not 0 <= block < len(blocks):
+        raise ValueError(f"the CIF holds {len(blocks)} structure(s), there is no number {block + 1}")
+    name, items, loops = blocks[block]
     name = safe_text(name)
     warnings = []
 

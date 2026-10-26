@@ -29,7 +29,7 @@ from urllib.parse import parse_qs
 import numpy as np
 
 from . import deform, rigidity
-from .cif import read_cif, safe_text
+from .cif import cif_block_names, read_cif, safe_text
 from .elements import COVALENT_RADII, color
 from .geometry import export_frames, path_geometry
 from .model import PRESET_LABELS, MechanicalModel, ModelOptions, auto_preset, preset
@@ -229,7 +229,8 @@ def model_payload(st: Structure, m: MechanicalModel, rig):
 
 # ---------------------------------------------------------------- handlers
 
-def api_load(body):
+def _source(body):
+    """-> (CIF text, display name or None, file stem or None) of an upload or an example."""
     text = body.get("text")
     name = body.get("name")
     stem = name
@@ -248,9 +249,31 @@ def api_load(body):
         name = _catalog().get("structures", {}).get(fname, {}).get("name", stem)
     if not isinstance(text, str):
         raise ClientError("no CIF given")
-    st = Structure(read_cif(text, max_atoms=Config.MAX_ATOMS))
     if not isinstance(name, str):
         name = stem = None
+    return text, name, stem
+
+
+def api_blocks(body):
+    """The structures (data blocks with atom sites) in a CIF, without building them."""
+    text, name, _ = _source(body)
+    blocks = cif_block_names(text)
+    if not blocks:
+        raise ValueError("no data block with _atom_site_fract_x found")
+    return {"name": safe_text(name) if name else None, "blocks": blocks}
+
+
+def api_load(body):
+    text, name, stem = _source(body)
+    block = body.get("block", 0)
+    if not isinstance(block, int) or isinstance(block, bool):
+        raise ClientError("invalid block number")
+    st = Structure(read_cif(text, max_atoms=Config.MAX_ATOMS, block=block))
+    blocks = cif_block_names(text)
+    if len(blocks) > 1:
+        # one of several structures in a file: it is named after its data block
+        name = f"{name} · {st.name}" if name and body.get("example") else st.name
+        stem = f"{stem}_{st.name}" if stem else st.name
     if name:
         st.name = safe_text(name)
     st.stem = re.sub(r"[^\w.-]+", "_", stem or st.name).strip("_")[:60] or "structure"
@@ -497,14 +520,18 @@ def api_export(body):
     return {"text": data}
 
 
-POST_ROUTES = {"/api/load": api_load, "/api/model": api_model, "/api/analyze": api_analyze,
+POST_ROUTES = {"/api/load": api_load, "/api/blocks": api_blocks, "/api/model": api_model,
+               "/api/analyze": api_analyze,
                "/api/remove_guests": api_remove_guests, "/api/export": api_export}
 GET_ROUTES = {"/api/examples": api_examples, "/api/job": api_job, "/api/frame": api_frame}
 HEAVY_ROUTES = {"/api/load", "/api/model", "/api/remove_guests", "/api/export"}
 # per-client request budgets per minute. /api/frame only places the bodies of an already finished
 # analysis (milliseconds), but the frame slider calls it often, so it has its own, larger budget
 RATE_LIMITS = {**{p: ("heavy", Config.RATE) for p in HEAVY_ROUTES | {"/api/analyze"}},
-               "/api/frame": ("frames", Config.RATE_FRAMES)}
+               "/api/frame": ("frames", Config.RATE_FRAMES),
+               # listing the structures of a CIF only tokenises it; opening many files at once
+               # sends one request per file
+               "/api/blocks": ("frames", Config.RATE_FRAMES)}
 
 # only these files are served (no directory listing, no path tricks)
 STATIC_FILES = {"/": "index.html", "/index.html": "index.html", "/app.js": "app.js",

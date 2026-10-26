@@ -13,6 +13,7 @@ __all__ = ["read_cif", "Structure", "MechanicalModel", "ModelOptions", "preset",
 __version__ = "0.1.0"
 
 
-def load(path):
+def load(path, block=0):
+    """Structure number `block` (0-based) of a CIF file."""
     with open(path, encoding="utf-8", errors="replace") as fh:
-        return Structure(read_cif(fh.read()))
+        return Structure(read_cif(fh.read(), block=block))

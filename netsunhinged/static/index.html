@@ -18,7 +18,7 @@
     L. Sarkisov, R. L. Martin, M. Haranczyk, B. Smit, <i>J. Am. Chem. Soc.</i> <b>2014</b>, 136, 2228
     (<a href="https://doi.org/10.1021/ja411673b" target="_blank" rel="noopener">doi:10.1021/ja411673b</a>)</span></div>
   <div class="hdr-actions">
-    <label class="btn"><input type="file" id="file" accept=".cif" hidden>Open CIF…</label>
+    <label class="btn" title="Open one or more CIF files; every structure in them is added to the list in the Structure box"><input type="file" id="file" accept=".cif" multiple hidden>Open CIF…</label>
     <select id="examples"><option value="">Examples…</option></select>
     <a class="gh" href="https://github.com/JBWeiss-chem/netsunhinged" target="_blank" rel="noopener"
        title="Source code on GitHub" aria-label="Source code on GitHub">
@@ -31,7 +31,8 @@
   <!-- ======================= left: structure + degrees of freedom -->
   <aside id="left">
     <section class="card">
-      <h2><span class="num">1</span>Structure <i class="info" data-tip="Bonds are assigned from covalent radii (+0.45 Å). Analysed: atoms in closed loops of the bonded framework. Dangling: H and terminal groups (e.g. methyl, terminal nitrile); they add no constraints to the model and are carried along rigidly (sterically they can still hinder a motion). Guests: atoms not bonded to the framework (solvent, counter-ions); they are never part of the analysis."></i></h2>
+      <h2><span class="num">1</span>Structure <i class="info" data-tip="Bonds are assigned from covalent radii (+0.45 Å). Analysed: atoms in closed loops of the bonded framework. Dangling: H and terminal groups (e.g. methyl, terminal nitrile); they add no constraints to the model and are carried along rigidly (sterically they can still hinder a motion). Guests: atoms not bonded to the framework (solvent, counter-ions); they are never part of the analysis.&#10;Every structure of every opened CIF (a file can hold several) gets a box below: click it to switch. Each keeps its DOF choices and results; a dot shows the verdict of its finite deformation test."></i></h2>
+      <div id="structList" hidden></div>
       <div id="structInfo" class="muted">Load a CIF file to start.</div>
       <button id="removeGuests" class="small" hidden>Remove guests</button>
       <div id="warnings"></div>

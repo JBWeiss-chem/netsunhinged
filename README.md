@@ -9,7 +9,9 @@ and pivots. It implements and generalises
 
 What it does:
 
-* reads a CIF (symmetry expansion, removal of guests, H and other dangling atoms),
+* reads CIF files, also several at once and files with several structures (symmetry expansion,
+  removal of guests, H and other dangling atoms); every structure gets a box in the app for fast
+  switching, and each keeps its own settings and results,
 * shows the structure in 3D, coloured by element, rigid body, or degrees of freedom,
 * lets you **click atoms and bonds to choose what is flexible**,
 * analyses the resulting mechanism twice: once infinitesimally (exact linear algebra) and once with the
@@ -94,7 +96,7 @@ Analyse CIF files from the command line:
 netsunhinged analyze my.cif other.cif --preset paper
 ```
 
-`netsunhinged analyze --help` lists all options. `python -m netsunhinged` works as well.
+Every structure in each file is analysed. `netsunhinged analyze --help` lists all options. `python -m netsunhinged` works as well.
 
 The **Examples** menu lists the literature structures in `netsunhinged/examples/`: open-licence (CC0)
 copies from the Crystallography Open Database, named `{trivial name}_COD-{id}.cif` (see

@@ -282,6 +282,39 @@ def test_web_app_security():
     assert "<" not in payload["name"] and all("<" not in a["label"] for a in payload["atoms"])
 
 
+def test_cif_with_several_structures():
+    import json
+    from netsunhinged.cif import cif_block_names
+
+    def text(name):
+        with open(os.path.join(EXAMPLES, name), encoding="utf-8") as fh:
+            return fh.read()
+    # two structures in one file, behind a block without atoms (e.g. publication data)
+    multi = "data_global\n_journal_name_full 'x'\n" + text("DMOF-1_COD-7038645.cif") + "\n" + text(
+        "MOF-5_COD-7240544.cif")
+    names = cif_block_names(multi)
+    assert len(names) == 2
+    assert Structure(read_cif(multi, block=1)).formula() == Structure(
+        read_cif(text("MOF-5_COD-7240544.cif"))).formula()
+    try:
+        read_cif(multi, block=2)
+        raise AssertionError("block 3 does not exist")
+    except ValueError:
+        pass
+    # the web API lists the structures and builds the chosen one, named after its data block
+    status, _, data = _call("POST", "/api/blocks", json.dumps({"text": multi, "name": "both"}).encode())
+    assert status == 200 and json.loads(data)["blocks"] == names
+    status, _, data = _call("POST", "/api/load", json.dumps({"text": multi, "name": "both",
+                                                            "block": 1}).encode())
+    payload = json.loads(data)
+    assert status == 200 and payload["name"] == names[1] and payload["stem"].startswith("both_")
+    assert _call("POST", "/api/load", json.dumps({"text": multi, "block": 5}).encode())[0] == 400
+    assert _call("POST", "/api/load", json.dumps({"text": multi, "block": "1"}).encode())[0] == 400
+    # a single-structure file keeps the name it was opened with
+    status, _, data = _call("POST", "/api/load", json.dumps({"example": "ZIF-8_COD-7111971.cif"}).encode())
+    assert status == 200 and "·" not in json.loads(data)["name"]
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

@@ -9,11 +9,20 @@ import numpy as np
 
 def cmd_analyze(args):
     from . import deform, load, rigidity
+    from .cif import cif_block_names
     from .model import MechanicalModel, ModelOptions, preset
 
-    rows = []
+    # every structure of every file (a CIF can hold several data blocks)
+    jobs = []
     for path in args.cif:
-        st = load(path)
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            names = cif_block_names(fh.read())
+        jobs += [(path if len(names) == 1 else f"{path} [{name}]", path, k) for k, name in enumerate(names)]
+    if not jobs:
+        sys.exit("no structure (data block with _atom_site_fract_x) found")
+    rows = []
+    for label, path, block in jobs:
+        st = load(path, block)
         if args.options:
             with open(args.options, encoding="utf-8") as fh:
                 opts = ModelOptions.from_dict(json.load(fh))
@@ -21,7 +30,7 @@ def cmd_analyze(args):
             opts = preset(st, args.preset)
         m = MechanicalModel(st, opts)
         rig = rigidity.analyze(m)
-        print(f"\n=== {path}  ({st.formula(st.framework)}, {st.N} atoms, {st.n_guest} guest atoms)")
+        print(f"\n=== {label}  ({st.formula(st.framework)}, {st.N} atoms, {st.n_guest} guest atoms)")
         for w in st.warnings:
             print("  warning:", w)
         s = m.summary()
@@ -43,7 +52,7 @@ def cmd_analyze(args):
                 mx = max(p[key] for p in r["points"])
                 print(f"    {name:8s} {r['classification']:14s} max {key} = {mx:9.2e}  {r['detail']}")
             print(f"  VERDICT: {verdict.upper()}")
-        rows.append((path, rig["n_macroscopic"], verdict))
+        rows.append((label, rig["n_macroscopic"], verdict))
     if len(rows) > 1:
         print("\nsummary:")
         for path, nm, v in rows:

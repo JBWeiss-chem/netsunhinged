@@ -6,6 +6,9 @@ const S = {
   st: null, model: null, opts: null, colorMode: 'element', sc: [2, 2, 2],
   result: null, jobId: null, anim: null, frame: null, sel: null, regime: null,
 };
+// opened structures (see "loaded structures"): the one on screen and the one being read
+const entries = [];
+let active = null, pending = null;
 const PALETTE = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#edc948', '#b07aa1',
   '#ff9da7', '#9c755f', '#bab0ac', '#86bcb6', '#d37295', '#fabfd2', '#8cd17d', '#499894', '#f1ce63'];
 // result colours (Okabe & Ito, colour-blind safe): positive greens for flexible / semi-flexible,
@@ -19,7 +22,7 @@ async function api(path, body) {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   } : {});
   const j = await r.json();
-  if (j.error) throw new Error(j.error);
+  if (j.error) throw Object.assign(new Error(j.error), { status: r.status });
   return j;
 }
 function fail(e) { console.error(e); alert(e.message || e); }
@@ -657,6 +660,7 @@ let modelTimer = null;
 function optionsChanged() {
   S.modelVersion = (S.modelVersion || 0) + 1;
   S.edited = true;
+  S.modelDirty = true;
   renderPresetInfo();
   renderTables();
   renderSelection();
@@ -674,9 +678,14 @@ function renderPresetInfo() {
 async function refreshModel(presetName) {
   if (!S.st) return;
   if (presetName) S.modelVersion = (S.modelVersion || 0) + 1;
-  const body = presetName ? { id: S.st.id, preset: presetName } : { id: S.st.id, options: S.opts };
+  const st = S.st, version = S.modelVersion;
   $('modelInfo').textContent = 'building model…';
-  S.model = await api('/api/model', body);
+  const model = await withSession(() => api('/api/model', presetName
+    ? { id: S.st.id, preset: presetName } : { id: S.st.id, options: S.opts }));
+  // the user switched to another structure meanwhile: it is rebuilt when shown again
+  if (S.st !== st) return;
+  if (S.modelVersion === version) S.modelDirty = false;
+  S.model = model;
   S.opts = S.model.options;
   if (S.model.preset) { S.preset = S.model.preset; S.edited = false; }
   renderPresetInfo();
@@ -690,7 +699,12 @@ async function refreshModel(presetName) {
 }
 
 function invalidateResults() {
-  S.result = null; S.regime = null;
+  S.result = null;
+  clearResults();
+  renderEntries();
+}
+function clearResults() {
+  S.regime = null;
   $('verdict').innerHTML = ''; $('plot').innerHTML = '';
   $('regTable').querySelector('tbody').innerHTML = '';
   $('exportRes').hidden = true;
@@ -726,7 +740,10 @@ $('removeGuests').onclick = async () => {
     let k = 0;
     S.st.atoms.forEach((a, s) => { if (a.role !== 'guest') newIndex[s] = k++; });
     S.opts.flex_angle_sites = S.opts.flex_angle_sites.filter((s) => s in newIndex).map((s) => newIndex[s]);
-    S.st = await api('/api/remove_guests', { id: S.st.id });
+    const st = S.st;
+    const reduced = await withSession(() => api('/api/remove_guests', { id: S.st.id }));
+    if (S.st !== st) return;
+    S.st = reduced; S.guestsRemoved = true;
     renderStructInfo();
     // keep the user's degrees of freedom: atom labels are unchanged
     await refreshModel();
@@ -818,34 +835,55 @@ $('run').onclick = async () => {
       thr: +$('thr').value, thr2: +$('thr2').value, follow_modes: $('followModes').checked,
       extended: $('extended').checked, paper_regimes: true,
     };
-    const { job } = await api('/api/analyze', { id: S.st.id, options: S.opts, settings });
-    S.jobId = job;
-    S.activeJob = job;           // only the latest job may touch the UI
+    // the job belongs to this structure: it keeps running when another structure is shown,
+    // and its results are stored with this one
+    const entry = active;
+    const state = () => (entry === active ? S : entry.saved);
+    const { job } = await withSession(() => api('/api/analyze', { id: S.st.id, options: S.opts, settings }));
+    const own = state();
+    if (!own) return;
+    own.jobId = job;
+    own.activeJob = job;         // only the latest job of a structure may touch its state
+    own.progress = 0;
     // results belong to this structure and model; edits during the run make them stale
-    const stamp = { st: S.st.id, version: S.modelVersion };
-    $('run').disabled = true; $('progress').hidden = false;
+    const stamp = { st: own.st.id, version: own.modelVersion };
+    showProgress(); renderEntries();
     const poll = async () => {
-      if (S.activeJob !== job) return;       // superseded or abandoned
+      if (state()?.activeJob !== job) return;       // superseded, abandoned or closed
       const j = await api(`/api/job?job=${job}`);
-      if (S.activeJob !== job) return;
-      $('progress').firstElementChild.style.width = `${Math.round(j.progress * 100)}%`;
+      const cur = state();
+      if (cur?.activeJob !== job) return;
+      cur.progress = j.progress;
       if (j.status === 'queued' || j.status === 'running') {
-        $('verdict').innerHTML = j.status === 'queued' ? '<p class="hint">Waiting for a free worker (other analyses are running)…</p>' : '';
+        if (entry === active) {
+          showProgress();
+          $('verdict').innerHTML = j.status === 'queued' ? '<p class="hint">Waiting for a free worker (other analyses are running)…</p>' : '';
+        }
         setTimeout(poll, j.status === 'queued' ? 1500 : 400);
         return;
       }
-      $('run').disabled = false; $('progress').hidden = true;
-      if (j.status === 'error') { fail(new Error(j.message)); return; }
-      if (!S.st || S.st.id !== stamp.st || S.modelVersion !== stamp.version) {
-        $('verdict').innerHTML = '<p class="hint">The structure or the DOFs were changed during the run, so its results were discarded. Run the analysis again.</p>';
+      cur.activeJob = null;
+      if (entry === active) showProgress();
+      renderEntries();
+      if (j.status === 'error') { fail(new Error(entry === active ? j.message : `${entry.label}: ${j.message}`)); return; }
+      if (!cur.st || cur.st.id !== stamp.st || cur.modelVersion !== stamp.version) {
+        if (entry === active) $('verdict').innerHTML = '<p class="hint">The structure or the DOFs were changed during the run, so its results were discarded. Run the analysis again.</p>';
         return;
       }
-      S.result = j.result; S.result.settings = settings;
-      renderResults();
+      cur.result = j.result; cur.result.settings = settings;
+      if (entry === active) renderResults();
+      renderEntries();
     };
     poll();
-  } catch (e) { $('run').disabled = false; fail(e); }
+  } catch (e) { showProgress(); fail(e); }
 };
+// the run button and progress bar show the job of the structure on screen
+function showProgress() {
+  const running = !!(S.st && S.activeJob);
+  $('run').disabled = !S.st || running;
+  $('progress').hidden = !running;
+  $('progress').firstElementChild.style.width = `${Math.round((S.progress || 0) * 100)}%`;
+}
 
 function metricKey() { return S.result.settings.metric === 'relative' ? 'F' : 'E'; }
 
@@ -1000,7 +1038,7 @@ $('animExport').onclick = async () => {
     }
     S.anim.t = saved;
     const fmt = $('animFmt').value;
-    const res = await api('/api/export', { id: S.st.id, frames, fmt });
+    const res = await withSession(() => api('/api/export', { id: S.st.id, frames, fmt }));
     saveExport(res, `${S.st.stem}_${$('animTitle').textContent.split(':')[0].replace(/\s+/g, '_')}`, fmt);
   } catch (e) { fail(e); }
 };
@@ -1193,31 +1231,181 @@ $('rigidSbu').onchange = () => {
 };
 $('sbuCutoff').onchange = () => { S.opts.sbu_cutoff = +$('sbuCutoff').value; optionsChanged(); };
 
-async function loadStructure(body) {
+// ------------------------------------------------------------------ loaded structures
+// Every structure of every opened CIF (a file may hold several data blocks) gets a box in the
+// Structure card. A structure is built on the server when it is first shown; afterwards its
+// model, DOF choices and results are kept in the browser, so switching back to it is instant.
+// The state of the structure on screen lives in S, that of the others in entry.saved.
+const ENTRY_KEYS = ['st', 'model', 'opts', 'preset', 'edited', 'modelVersion', 'modelDirty',
+  'result', 'jobId', 'activeJob', 'progress', 'guestsRemoved'];
+function freshState(st) {
+  return { st, model: null, opts: null, preset: null, edited: false, modelVersion: 0, modelDirty: true,
+    result: null, jobId: null, activeJob: null, progress: 0, guestsRemoved: false };
+}
+
+// adds a box for each structure in the CIF and returns the first; a file opened again is not
+// added twice
+async function openCif(src) {
+  const same = (e) => (src.example ? e.src.example === src.example
+    : e.src.text === src.text && e.src.name === src.name);
+  const known = entries.find(same);
+  if (known) return known;
+  const { name, blocks } = await api('/api/blocks', src);
+  const file = name || src.name || 'structure';
+  const added = blocks.map((b, block) => ({
+    src, block, file, multi: blocks.length > 1, label: blocks.length > 1 ? b : file, saved: null,
+  }));
+  entries.push(...added);
+  return added[0];
+}
+
+let switching = 0;
+async function activate(entry) {
+  if (entry === active) return;
+  const token = ++switching;
+  pending = entry; renderEntries();
   try {
-    stopFrame(false); S.anim = null; $('animBar').hidden = true; S.sel = null; renderSelection();
-    $('structInfo').textContent = 'reading…';
-    S.st = await api('/api/load', body);
-    S.model = null;
-    // a job still running for the previous structure is abandoned
-    S.activeJob = null; $('progress').hidden = true;
-    // keep the current repeats if they fit, otherwise the default 2x2x2, otherwise 1x1x1
-    const fits = (sc) => visibleAtomCount() * sc[0] * sc[1] * sc[2] <= MAX_DRAWN_ATOMS;
-    if (!fits(S.sc)) S.sc = fits([2, 2, 2]) ? [2, 2, 2] : [1, 1, 1];
-    showSupercell();
-    renderStructInfo();
-    await refreshModel('auto');
-    frameCamera();
-    $('run').disabled = false;
-    updateControlStates();
-  } catch (e) { fail(e); $('structInfo').textContent = 'Load a CIF file to start.'; }
+    if (!entry.saved) entry.saved = freshState(await api('/api/load', { ...entry.src, block: entry.block }));
+  } catch (e) {
+    if (pending === entry) pending = null;
+    closeEntry(entry);
+    fail(e);
+    return;
+  }
+  // another structure was chosen, or this one closed, while it was read
+  if (token !== switching || !entries.includes(entry)) return;
+  pending = null;
+  leaveActive();
+  if (active) active.saved = Object.fromEntries(ENTRY_KEYS.map((k) => [k, S[k]]));
+  active = entry;
+  Object.assign(S, entry.saved);
+  await showActive();
+}
+// stops what belongs to the structure on screen; an edit not yet sent to the server stays
+// marked (modelDirty) and is applied when the structure is shown again
+function leaveActive() {
+  stopFrame(false); S.anim = null; $('animBar').hidden = true; S.sel = null; renderSelection();
+  clearTimeout(modelTimer);
+}
+async function showActive() {
+  // keep the current repeats if they fit, otherwise the default 2x2x2, otherwise 1x1x1
+  const fits = (sc) => visibleAtomCount() * sc[0] * sc[1] * sc[2] <= MAX_DRAWN_ATOMS;
+  if (!fits(S.sc)) S.sc = fits([2, 2, 2]) ? [2, 2, 2] : [1, 1, 1];
+  showSupercell();
+  renderStructInfo();
+  renderEntries();
+  clearResults();
+  showProgress();
+  try {
+    if (S.model && !S.modelDirty) {
+      renderPresetInfo(); renderTables(); renderModelInfo(); renderInfInfo(); renderSelection();
+      buildScene();
+      if (S.result) renderResults();
+    } else {
+      clearModelPanels();
+      buildScene();
+      await refreshModel(S.model ? undefined : 'auto');
+    }
+  } catch (e) { fail(e); }
+  frameCamera();
+  updateControlStates();
+}
+function clearModelPanels() {
+  $('presetInfo').innerHTML = '';
+  $('modelInfo').textContent = '–'; $('infInfo').textContent = '–';
+  ['labelTable', 'bondTable'].forEach((id) => { $(id).querySelector('tbody').innerHTML = ''; });
+}
+function showEmpty() {
+  leaveActive();
+  active = null;
+  Object.assign(S, freshState(null));
+  clearResults(); clearModelPanels(); buildScene();
+  $('structInfo').textContent = 'Load a CIF file to start.';
+  $('warnings').innerHTML = ''; $('removeGuests').hidden = true;
+  showSupercell(); showProgress(); updateControlStates(); renderEntries();
+}
+function closeEntry(entry) {
+  const k = entries.indexOf(entry);
+  if (k < 0) return;
+  entries.splice(k, 1);
+  entry.saved = null;          // its running analysis, if any, is no longer followed
+  if (entry === active) {
+    const next = entries[k] || entries[k - 1];
+    showEmpty();
+    if (next) activate(next);
+  }
+  renderEntries();
+}
+
+function renderEntries() {
+  const box = $('structList');
+  box.hidden = !entries.length;
+  box.replaceChildren(...entries.map((e) => {
+    const st = e === active ? S : e.saved;
+    const row = document.createElement('div');
+    row.className = `sitem${e === active ? ' active' : ''}${e === pending ? ' loading' : ''}`;
+    const pick = document.createElement('button');
+    pick.className = 'pick';
+    pick.title = e.multi ? `${e.label} (${e.file})` : e.label;
+    const mark = document.createElement('span');
+    mark.className = 'mark';
+    if (st?.activeJob) { mark.classList.add('running'); mark.title = 'deformation test running'; }
+    else if (st?.result) {
+      mark.style.background = CLS_COLOR[st.result.verdict];
+      mark.title = `finite test: ${st.result.verdict}`;
+    }
+    const nm = document.createElement('span');
+    nm.className = 'nm'; nm.textContent = e.label;
+    pick.append(mark, nm);
+    if (e.multi) {
+      const f = document.createElement('span');
+      f.className = 'file'; f.textContent = e.file;
+      pick.append(f);
+    }
+    pick.onclick = () => activate(e);
+    const x = document.createElement('button');
+    x.className = 'x'; x.textContent = '×'; x.title = 'close'; x.setAttribute('aria-label', `close ${e.label}`);
+    x.onclick = () => closeEntry(e);
+    row.append(pick, x);
+    return row;
+  }));
+  box.querySelector('.active')?.scrollIntoView({ block: 'nearest' });
+}
+
+// a structure's server session ends after an hour without use; it is then rebuilt from its CIF
+// (which the browser keeps) and the call is repeated. DOF choices and results stay as they are.
+async function withSession(call) {
+  try { return await call(); } catch (e) {
+    if (e.status !== 410 || !active || !S.st) throw e;
+    const st = S.st;
+    let fresh = await api('/api/load', { ...active.src, block: active.block });
+    if (S.guestsRemoved) fresh = await api('/api/remove_guests', { id: fresh.id });
+    if (S.st !== st) throw e;
+    st.id = fresh.id;          // same atoms in the same order: only the session changes
+    return call();
+  }
+}
+
+async function openAndShow(sources) {
+  let first = null;
+  const errors = [];
+  for (const [label, src] of sources) {
+    try { first ||= await openCif(await src()); } catch (e) { errors.push(`${label}: ${e.message}`); }
+  }
+  renderEntries();
+  if (errors.length) fail(new Error(errors.join('\n')));
+  if (first) await activate(first);
 }
 $('file').onchange = async (e) => {
-  const f = e.target.files[0]; if (!f) return;
-  await loadStructure({ text: await f.text(), name: f.name.replace(/\.cif$/i, '') });
+  const files = [...e.target.files];
   e.target.value = '';
+  await openAndShow(files.map((f) => [f.name, async () => ({ text: await f.text(), name: f.name.replace(/\.cif$/i, '') })]));
 };
-$('examples').onchange = () => { const v = $('examples').value; if (v) loadStructure({ example: v }); $('examples').value = ''; };
+$('examples').onchange = () => {
+  const v = $('examples').value;
+  $('examples').value = '';
+  if (v) openAndShow([[v, async () => ({ example: v })]]);
+};
 api('/api/examples').then((r) => {
   $('examples').innerHTML += r.groups.map((g) => `<optgroup label="${esc(g.category)}">${
     g.items.map((e) => `<option value="${esc(e.file)}">${esc(e.label)}</option>`).join('')}</optgroup>`).join('');
