@@ -111,7 +111,10 @@ def test_mil88b_modes():
     assert r["macroscopic_modes"][0]["strain_share"] > 0.5
     assert r["n_internal"] == 5 and r["n_internal_weak_strain"] == 4
     # with the carboxylate C on the ring axis: six free ring spins, no strain coupling
-    straight = _mil88b_cif().replace("C1 C 0.5428(13) 0.4572(13) 0.1437(13)", "C1 C 0.54453 0.45547 0.1437")
+    # (exactly on the line from the ring centre (1/2, 1/2, 0) through C2; rounding would leave a
+    # residual bend that puts the last ring spin right at the null-space tolerance)
+    x = 0.5 + 0.0216 * 0.1437 / 0.0697
+    straight = _mil88b_cif().replace("C1 C 0.5428(13) 0.4572(13) 0.1437(13)", f"C1 C {x!r} {1 - x!r} 0.1437")
     st2 = Structure(read_cif(straight))
     r2 = rigidity.analyze(MechanicalModel(st2, preset(st2, "auto")))
     assert r2["n_macroscopic"] == 1 and r2["n_internal"] == 6 and r2["n_internal_weak_strain"] == 0
