@@ -9,9 +9,16 @@ with p the atom position relative to the body centroid (body centroids follow th
 affinely).  The null space of this compatibility matrix contains the mechanisms: deformations
 that keep every body rigid and every joint closed to first order.  They cost nothing within the
 model only; in the material, the released angles and torsions, non-bonded interactions and
-guests still resist them.  Modes with a non-zero strain component change the unit
-cell: they are the candidate large-amplitude ("breathing", "shear") flexibility modes
-of the framework; strain-free modes are local mechanisms such as linker rotations.
+guests still resist them.  Modes that change the unit cell are the candidate
+large-amplitude ("breathing", "shear") flexibility modes of the framework; the others are
+local mechanisms such as linker rotations.
+
+The mechanism space is split by the share of the atomic motion that comes from the cell strain
+(affine part, in A^2 like the rest).  A mode counts as cell-changing only if that share exceeds
+STRAIN_SHARE_MIN.  Any non-zero strain is not enough: in an experimental structure a linker
+that is bent by a few hundredths of an A (e.g. a carboxylate C slightly off the ring axis) turns
+the free spin of the ring into a motion that drags the cell along by a fraction of a percent.
+Such modes are local motions in all but name and are reported as internal.
 """
 
 from __future__ import annotations
@@ -21,6 +28,9 @@ import numpy as np
 from .model import MechanicalModel
 
 STRAIN_NAMES = ["xx", "yy", "zz", "yz", "xz", "xy"]
+# genuine cell-changing modes of the examples: 3.7-96 %; ring spins coupled to the cell only
+# through slightly bent linkers (MIL-88B CIF): 0.03-0.2 %
+STRAIN_SHARE_MIN = 0.01
 
 
 def cell_params(L: np.ndarray):
@@ -150,6 +160,31 @@ def classify_strain(rel, vol):
     return kind, ", ".join(parts)
 
 
+def _displacement_parts(m: MechanicalModel, N: np.ndarray):
+    """Affine (cell strain) and non-affine atomic displacements of the columns of N.
+
+    Returns two (3 n_sites) x n_cols matrices for the atoms of the rigid bodies; both are
+    free of overall translation."""
+    st, nb = m.st, len(m.bodies)
+    occ = [lst[0] for lst in m.occurrences.values()]
+    bi = np.array([b for b, _, _ in occ], int)
+    p = np.array([m.bodies[b].pos[k] - m.bodies[b].centroid for b, k, _ in occ])
+    x = np.array([m.bodies[b].pos[k] - np.array(n) @ st.L for b, k, n in occ])
+    xc = x - x.mean(0)
+    aff = np.zeros((3 * len(occ), N.shape[1]))
+    non = np.zeros_like(aff)
+    for j in range(N.shape[1]):
+        v = N[:, j]
+        eps = strain_matrix(v[6 * nb:6 * nb + 6])
+        uw = v[:6 * nb].reshape(nb, 6)
+        # as in mode_displacements: centroid follows the cell, the body translates and rotates
+        tot = x @ eps - p @ eps + uw[bi, :3] + np.cross(uw[bi, 3:], p)
+        tot -= tot.mean(0)
+        aff[:, j] = (xc @ eps).ravel()
+        non[:, j] = (tot - xc @ eps).ravel()
+    return aff, non
+
+
 def analyze(m: MechanicalModel, tol: float = 1e-6, max_internal_modes: int = 12):
     A = compatibility_matrix(m)
     nb = len(m.bodies)
@@ -181,41 +216,48 @@ def analyze(m: MechanicalModel, tol: float = 1e-6, max_internal_modes: int = 12)
         N = U[:, s2 > 1e-6]
     n_mech = N.shape[1]
 
-    # strain content of the mechanism space
-    S = N[6 * nb:]
-    macro = []
+    # split the mechanism space by the strain share of the motion: generalized eigenproblem
+    # |affine|^2 = share (|affine|^2 + |non-affine|^2) over the atomic displacements
+    macro, Vint = [], np.zeros((0, 0))
+    share = np.zeros(0)
     if n_mech:
-        # strain (x cell size) has the same units as the atom displacements
-        Us, ss, Vs = np.linalg.svd(S * Ls, full_matrices=False)
-        k_macro = int((ss > 1e-4).sum())
+        Da, Dn = _displacement_parts(m, N)
+        Ga = Da.T @ Da
+        Gt = Ga + Dn.T @ Dn
+        mu, Q = np.linalg.eigh(Gt)
+        # columns that move no atom at all (e.g. a free spin of a one-atom body) carry no strain
+        keep = mu > 1e-12 * max(mu.max(), 1e-30)
+        Wt = Q[:, keep] / np.sqrt(mu[keep])
+        share, Y = np.linalg.eigh(Wt.T @ Ga @ Wt)
+        order = np.argsort(-share)
+        share, Y = share[order], Wt @ Y[:, order]
+        k_macro = int((share > STRAIN_SHARE_MIN).sum())
         for i in range(k_macro):
-            vec = N @ Vs[i]
-            e6 = vec[6 * nb:]
-            norm = np.abs(e6).max()
-            vec = vec / norm
+            vec = N @ Y[:, i]
+            vec = vec / np.abs(vec[6 * nb:]).max()
             disp, eps = mode_displacements(m, vec)
             rel, vol = describe_strain(m.st.L, eps)
             kind, text = classify_strain(rel, vol)
             macro.append({"strain6": vec[6 * nb:].tolist(), "eps": eps.tolist(),
                           "cell_rel": rel.tolist(), "volume_rel": vol,
-                          "kind": kind, "description": text,
+                          "kind": kind, "description": text, "strain_share": float(share[i]),
                           "disp": disp.tolist(), "vec": vec})
-        # internal (strain-free) mechanisms: orthogonal complement in the mechanism space
-        P = np.eye(n_mech) - Vs[:k_macro].T @ Vs[:k_macro]
-        Uq, sq, _ = np.linalg.svd(P)
-        Vint = Uq[:, sq > 0.5]
+        # internal mechanisms: the rest, plus the columns that move nothing
+        Vint = np.hstack([Y[:, k_macro:], Q[:, ~keep]])
         n_internal = Vint.shape[1]
+        n_weak = int((share[k_macro:] > 1e-6).sum())
     else:
-        k_macro, n_internal, Vint = 0, 0, np.zeros((0, 0))
+        k_macro, n_internal, n_weak = 0, 0, 0
 
     internal = []
     for i in range(min(n_internal, max_internal_modes)):
         vec = N @ Vint[:, i]
-        disp, _ = mode_displacements(m, vec)
+        disp, eps = mode_displacements(m, vec)
         mx = np.linalg.norm(disp, axis=1).max()
         if mx < 1e-9:
             continue
-        internal.append({"disp": (disp / mx).tolist()})
+        internal.append({"disp": (disp / mx).tolist(), "eps": (eps / mx).tolist(),
+                         "strain_share": float(share[k_macro + i]) if k_macro + i < len(share) else 0.0})
     for mode in macro:
         d = np.array(mode["disp"])
         mode["max_disp"] = float(np.linalg.norm(d, axis=1).max())
@@ -228,6 +270,8 @@ def analyze(m: MechanicalModel, tol: float = 1e-6, max_internal_modes: int = 12)
         "n_mechanisms": int(n_mech),
         "n_macroscopic": int(k_macro),
         "n_internal": int(n_internal),
+        "n_internal_weak_strain": int(n_weak),
+        "strain_share_min": STRAIN_SHARE_MIN,
         "smallest_nonzero_sv": [float(x / smax) for x in np.sort(nz)[:5]],
         "macroscopic_modes": macro,
         "internal_modes": internal,

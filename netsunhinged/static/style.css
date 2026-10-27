@@ -175,3 +175,5 @@ label.sc input[type=number] { width: 38px; }
 .row.wrap { flex-wrap: wrap; }
 .preset-info { font-size: 12px; margin: 4px 0 2px; padding: 5px 8px; background: #f6f7f9; border-radius: 6px; }
 .preset-info:empty { display: none; }
+#plotView { margin-top: 10px; }
+#plotView input[type=number] { width: 68px; }

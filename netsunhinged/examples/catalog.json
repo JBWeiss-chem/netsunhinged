@@ -38,6 +38,14 @@
       "ref": "Volkringer et al., Dalton Trans. 2009, 2241",
       "doi": "10.1039/b817563b"
     },
+    "MIL-88B-2OH_COD-4107051.cif": {
+      "category": "Carboxylate MOFs",
+      "name": "MIL-88B(Fe)-(OH)₂",
+      "note": "swelling",
+      "id": "COD 4107051",
+      "ref": "Horcajada et al., J. Am. Chem. Soc. 2011, 133, 17839",
+      "doi": "10.1021/ja206936e"
+    },
     "ZIF-7_COD-4121899.cif": {
       "category": "Zeolitic imidazolate frameworks (ZIFs)",
       "name": "ZIF-7",

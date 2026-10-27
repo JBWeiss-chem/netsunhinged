@@ -97,6 +97,38 @@ def test_mil53_breathing():
     assert pts[0]["cell"][1] < st.cell[1] and pts[0]["cell"][2] > st.cell[2]
 
 
+def _mil88b_cif():
+    with open(os.path.join(EXAMPLES, "MIL-88B-2OH_COD-4107051.cif"), encoding="utf-8") as fh:
+        return fh.read()
+
+
+def test_mil88b_modes():
+    # one cell-changing mode (swelling); the ring spins stay internal although the slightly bent
+    # linkers of the experimental structure couple four of them weakly to the cell
+    st = Structure(read_cif(_mil88b_cif()))
+    r = rigidity.analyze(MechanicalModel(st, preset(st, "auto")))
+    assert r["n_macroscopic"] == 1
+    assert r["macroscopic_modes"][0]["strain_share"] > 0.5
+    assert r["n_internal"] == 5 and r["n_internal_weak_strain"] == 4
+    # with the carboxylate C on the ring axis: six free ring spins, no strain coupling
+    straight = _mil88b_cif().replace("C1 C 0.5428(13) 0.4572(13) 0.1437(13)", "C1 C 0.54453 0.45547 0.1437")
+    st2 = Structure(read_cif(straight))
+    r2 = rigidity.analyze(MechanicalModel(st2, preset(st2, "auto")))
+    assert r2["n_macroscopic"] == 1 and r2["n_internal"] == 6 and r2["n_internal_weak_strain"] == 0
+
+
+def test_mil88b_swelling():
+    st = Structure(read_cif(_mil88b_cif()))
+    m = MechanicalModel(st, preset(st, "auto"))
+    _, res, verdict, _ = deform.run_all(m, regimes=["AB-C", "ABC"])
+    assert res["AB-C"]["classification"] == "flexible"
+    assert res["ABC"]["classification"] == "rigid"
+    # swelling: c shrinks while a and b grow (and vice versa)
+    pts = res["AB-C"]["points"]
+    assert pts[-1]["cell"][0] > st.cell[0] and pts[-1]["cell"][2] < st.cell[2]
+    assert pts[0]["cell"][2] > st.cell[2]
+
+
 def _zif7():
     with open(os.path.join(EXAMPLES, "ZIF-7_COD-4121899.cif"), encoding="utf-8") as fh:
         return Structure(read_cif(fh.read()))

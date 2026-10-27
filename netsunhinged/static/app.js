@@ -708,6 +708,7 @@ function clearResults() {
   $('verdict').innerHTML = ''; $('plot').innerHTML = '';
   $('regTable').querySelector('tbody').innerHTML = '';
   $('exportRes').hidden = true;
+  $('plotView').hidden = true;
   stopFrame(false);
 }
 
@@ -773,13 +774,15 @@ function renderInfInfo() {
   else html += '<p class="hint">Cell deformations the model allows to first order (no rigid body distorted, no joint opened). In the material these are soft directions, not free ones. Follow them to finite amplitude with the deformation test.</p>';
   r.macroscopic_modes.forEach((m, k) => {
     html += `<div class="mode"><span class="k">Mode ${k + 1}</span> · ${esc(m.kind)}<br>
-      <span class="muted">${esc(m.description)} · ΔV/V ${m.volume_rel >= 0 ? '+' : ''}${m.volume_rel.toFixed(2)}</span>
+      <span class="muted">${esc(m.description)} · ΔV/V ${m.volume_rel >= 0 ? '+' : ''}${m.volume_rel.toFixed(2)} · strain share ${(100 * m.strain_share).toFixed(m.strain_share < 0.1 ? 1 : 0)}%</span>
       <div><button class="small" data-mode="${k}">▶ animate</button></div></div>`;
   });
   if (r.internal_modes.length) {
     html += `<div style="margin-top:6px">Internal mechanisms: ${r.internal_modes.map((_, k) =>
       `<button class="small" data-imode="${k}">${k + 1}</button>`).join(' ')}</div>`;
   }
+  // internal modes that still strain the cell a little (bent linkers in experimental structures)
+  if (r.n_internal_weak_strain) html += `<p class="hint">${r.n_internal_weak_strain} internal mechanism(s) change the cell slightly, but less than ${100 * r.strain_share_min}% of their motion comes from the cell strain: they are local motions (typically ring spins of slightly bent linkers) and are not followed as cell-changing modes.</p>`;
   $('infInfo').innerHTML = html;
   $('infInfo').querySelectorAll('[data-mode]').forEach((b) => {
     b.onclick = () => {
@@ -789,7 +792,10 @@ function renderInfInfo() {
     };
   });
   $('infInfo').querySelectorAll('[data-imode]').forEach((b) => {
-    b.onclick = () => startAnim(`Internal mechanism ${+b.dataset.imode + 1}`, r.internal_modes[+b.dataset.imode].disp, null);
+    b.onclick = () => {
+      const m = r.internal_modes[+b.dataset.imode];
+      startAnim(`Internal mechanism ${+b.dataset.imode + 1}`, m.disp, m.strain_share > 1e-6 ? m.eps : null);
+    };
   });
 }
 
@@ -831,8 +837,7 @@ $('run').onclick = async () => {
   try {
     invalidateResults();
     const settings = {
-      dmin: +$('dmin').value, dmax: +$('dmax').value, step: +$('step').value, metric: $('metric').value,
-      thr: +$('thr').value, thr2: +$('thr2').value, follow_modes: $('followModes').checked,
+      dmin: +$('dmin').value, dmax: +$('dmax').value, step: +$('step').value, follow_modes: $('followModes').checked,
       extended: $('extended').checked, paper_regimes: true,
     };
     // the job belongs to this structure: it keeps running when another structure is shown,
@@ -885,31 +890,76 @@ function showProgress() {
   $('progress').firstElementChild.style.width = `${Math.round((S.progress || 0) * 100)}%`;
 }
 
-function metricKey() { return S.result.settings.metric === 'relative' ? 'F' : 'E'; }
+// The plotted metric and the thresholds are view settings: the server returns E and F for every
+// point, and the regimes are classified here from F, so both can be changed after the run.
+function metricKey() { return $('metric').value === 'absolute' ? 'E' : 'F'; }
+function thresholds() {
+  const v = (id, def) => { const x = +$(id).value; return Number.isFinite(x) && x > 0 ? x : def; };
+  return [v('thr', 0.01), v('thr2', 0.05)];
+}
+const clsColor = (c) => CLS_COLOR[c];
+
+// same criteria as deform.classify (keep the two in sync); F is scale-free, absolute E is not,
+// so the classification always uses F, whichever metric is plotted
+function classify(F, d, thr, thr2) {
+  if (F.every((v) => v < thr)) return ['flexible', 'mismatch below threshold over the whole range'];
+  const below = (side) => {
+    const ks = d.map((x, i) => i).filter((i) => side * (d[i] - 1) > 1e-9);
+    return ks.length > 0 && ks.every((i) => F[i] < thr);
+  };
+  if (below(-1)) return ['semi-flexible', 'mismatch below threshold for d < 1 only (one-sided)'];
+  if (below(1)) return ['semi-flexible', 'mismatch below threshold for d > 1 only (one-sided)'];
+  const i1 = d.reduce((b, x, i) => (Math.abs(x - 1) < Math.abs(d[b] - 1) ? i : b), 0);
+  let lo = i1, hi = i1;
+  while (lo - 1 >= 0 && F[lo - 1] < thr) lo--;
+  while (hi + 1 < F.length && F[hi + 1] < thr) hi++;
+  if (d[hi] - d[lo] >= 0.039) return ['semi-flexible', `mismatch below threshold only for ${d[lo].toFixed(2)} <= d <= ${d[hi].toFixed(2)}`];
+  if (F.every((v) => v < thr2)) return ['semi-flexible', 'low but non-zero mismatch over the whole range'];
+  return ['rigid', ''];
+}
+function classifyResult(R) {
+  const [thr, thr2] = thresholds();
+  Object.assign(R.settings, { thr, thr2 });
+  Object.values(R.regimes).forEach((r) => { [r.classification, r.detail] = classify(r.F, r.d, thr, thr2); });
+  const cls = Object.values(R.regimes).map((r) => r.classification);
+  R.verdict = cls.includes('flexible') ? 'flexible' : cls.includes('semi-flexible') ? 'semi-flexible' : 'rigid';
+  return R;
+}
 
 function renderResults() {
-  const R = S.result, key = metricKey();
+  const R = classifyResult(S.result), key = metricKey();
   const counts = { flexible: 0, 'semi-flexible': 0, rigid: 0 };
   Object.values(R.regimes).forEach((r) => counts[r.classification]++);
   const flexList = Object.entries(R.regimes).filter(([, r]) => r.classification === 'flexible').map(([k]) => k);
   $('verdict').innerHTML = `<span class="big" style="color:${CLS_COLOR[R.verdict]}">${R.verdict === 'flexible' ? 'Potentially flexible' : R.verdict === 'semi-flexible' ? 'Semi-flexible' : 'Rigid'}</span>
     <div class="muted">${counts.flexible} flexible · ${counts['semi-flexible']} semi · ${counts.rigid} rigid regimes · ${R.seconds}s
     ${flexList.length ? `<br>flexible: ${esc(flexList.join(', '))}` : ''}</div>`;
+  $('maxHead').textContent = `max ${key}`;
   const tb = $('regTable').querySelector('tbody');
   tb.innerHTML = Object.entries(R.regimes).map(([k, r]) => {
     const mx = Math.max(...r[key]);
     // volume range spanned by the scan, relative to the original cell
     const V0 = cellVolume(S.st.cell), rel = r.cell.map((c) => 100 * (cellVolume(c) / V0 - 1));
     const fmt = (v) => `${v >= 0 ? '+' : ''}${v.toFixed(Math.abs(v) >= 10 ? 0 : 1)}`;
-    return `<tr class="click" data-reg="${esc(k)}" title="${esc(r.description)}${r.detail ? ' — ' + esc(r.detail) : ''}">
+    return `<tr class="click${k === S.regime ? ' active' : ''}" data-reg="${esc(k)}" title="${esc(r.description)}${r.detail ? ' — ' + esc(r.detail) : ''}">
       <td><b>${esc(k)}</b> <span class="muted">${esc(r.description)}</span>${r.detail ? `<div class="det">${esc(r.detail)}</div>` : ''}</td>
       <td><span class="tag ${r.classification}">${r.classification === 'semi-flexible' ? 'semi' : r.classification}</span></td>
       <td>${mx.toExponential(1)}</td><td>${fmt(Math.min(...rel))}…${fmt(Math.max(...rel))}</td></tr>`;
   }).join('');
   tb.querySelectorAll('tr').forEach((tr) => { tr.onclick = () => selectRegime(tr.dataset.reg).catch(fail); });
   $('exportRes').hidden = false;
+  $('plotView').hidden = false;
   renderPlot();
 }
+// a new metric or threshold only redraws: nothing is recomputed
+['metric', 'thr', 'thr2'].forEach((id) => {
+  $(id).addEventListener('input', () => {
+    if (!S.result) return;
+    renderResults();
+    if (S.frame) { frameInfo(S.frame); renderGraphs(); }
+    renderEntries();
+  });
+});
 
 function renderPlot() {
   const R = S.result, key = metricKey(), st = R.settings;
@@ -918,26 +968,39 @@ function renderPlot() {
   const x = (d) => ml + ((d - st.dmin) / (st.dmax - st.dmin)) * (W - ml - mr);
   const y = (v) => { const l = Math.min(hi, Math.max(lo, Math.log10(Math.max(v, 1e-30)))); return mt + ((hi - l) / (hi - lo)) * (H - mt - mb); };
   let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
-  for (let e = lo; e <= hi; e += 2) svg += `<line x1="${ml}" x2="${W - mr}" y1="${y(10 ** e)}" y2="${y(10 ** e)}" stroke="#eee"/><text x="${ml - 4}" y="${y(10 ** e) + 3}" text-anchor="end">1e${e}</text>`;
-  for (let d = st.dmin; d <= st.dmax + 1e-9; d += 0.05) svg += `<text x="${x(d)}" y="${H - 12}" text-anchor="middle">${d.toFixed(2)}</text>`;
+  for (let e = lo; e <= hi; e += 2) svg += `<line x1="${ml}" x2="${W - mr}" y1="${y(10 ** e)}" y2="${y(10 ** e)}" stroke="#eee"/><text x="${ml - 4}" y="${y(10 ** e) + 3}" text-anchor="end">${e === lo ? '≤' : ''}1e${e}</text>`;
+  for (let d = Math.ceil(st.dmin * 20 - 1e-9) / 20; d <= st.dmax + 1e-9; d += 0.05) svg += `<text x="${x(d)}" y="${H - 12}" text-anchor="middle">${d.toFixed(2)}</text>`;
   svg += `<text x="${(W + ml) / 2}" y="${H - 1}" text-anchor="middle">order parameter d</text>`;
   svg += `<text x="10" y="${mt + 4}" >${key === 'F' ? 'F' : 'E'}</text>`;
-  [[st.thr, CLS_COLOR.flexible], [st.thr2, CLS_COLOR['semi-flexible']]].forEach(([t, c]) => {
-    svg += `<line x1="${ml}" x2="${W - mr}" y1="${y(t)}" y2="${y(t)}" stroke="${c}" stroke-dasharray="1.5 2.5" stroke-width="1.4"/>`;
-  });
-  const entries = Object.entries(R.regimes);
-  entries.sort((a, b) => (a[0] === S.regime) - (b[0] === S.regime));
-  entries.forEach(([k, r]) => {
-    const pts = r.d.map((d, i) => [d, r[key][i]]).filter(([d]) => Math.abs(d - 1) > 1e-9);
-    const sel = k === S.regime;
-    const segs = [pts.filter(([d]) => d < 1), pts.filter(([d]) => d > 1)];
-    segs.forEach((seg) => {
-      if (!seg.length) return;
-      svg += `<polyline fill="none" stroke="${CLS_COLOR[r.classification]}" stroke-dasharray="${CLS_DASH[r.classification]}" stroke-width="${sel ? 2.6 : 1}" opacity="${S.regime && !sel ? 0.35 : 0.9}"
-        points="${seg.map(([d, v]) => `${x(d)},${y(v)}`).join(' ')}"><title>${esc(k)}</title></polyline>`;
-    });
-  });
   svg += `<line x1="${x(1)}" x2="${x(1)}" y1="${mt}" y2="${H - mb}" stroke="#ccc"/>`;
+  if (key === 'F') {
+    [[st.thr, CLS_COLOR.flexible], [st.thr2, CLS_COLOR['semi-flexible']]].forEach(([t, c]) => {
+      svg += `<line x1="${ml}" x2="${W - mr}" y1="${y(t)}" y2="${y(t)}" stroke="${c}" stroke-dasharray="1.5 2.5" stroke-width="1.4"/>`;
+    });
+  }
+  // E(1) = 0 exactly (drawn at the bottom of the axis). F(1) = 0/0 is undefined, but F is continuous
+  // there (E and E_affine both grow as (d - 1)^2), so the two branches are joined across d = 1.
+  const curve = (r) => r.d.map((d, i) => [d, r[key][i]]).filter(([d]) => key === 'E' || Math.abs(d - 1) > 1e-9);
+  const pts = (c) => c.map(([d, v]) => `${x(d)},${y(v)}`).join(' ');
+  const entries = Object.entries(R.regimes);
+  entries.forEach(([k, r]) => {
+    if (k === S.regime) return;
+    const col = S.regime ? '#c3c9d2' : clsColor(r.classification);
+    svg += `<polyline fill="none" stroke="${col}" stroke-dasharray="${S.regime ? '' : CLS_DASH[r.classification] || ''}" stroke-width="${S.regime ? 0.8 : 1.1}" opacity="${S.regime ? 0.7 : 0.9}"
+      points="${pts(curve(r))}"><title>${esc(k)}</title></polyline>`;
+  });
+  // the selected regime on top: halo, thick line, data points, the frame shown and a label
+  const r = S.regime && R.regimes[S.regime];
+  if (r) {
+    const c = curve(r), col = clsColor(r.classification);
+    svg += `<polyline fill="none" stroke="#fff" stroke-width="5" stroke-linejoin="round" points="${pts(c)}"/>`;
+    svg += `<polyline fill="none" stroke="${col}" stroke-width="2.4" stroke-linejoin="round" points="${pts(c)}"><title>${esc(S.regime)}</title></polyline>`;
+    c.forEach(([d, v]) => { svg += `<circle cx="${x(d)}" cy="${y(v)}" r="2.3" fill="${col}" stroke="#fff" stroke-width="0.8"/>`; });
+    if (S.frame && Math.abs(S.frame.d - 1) > 1e-9) {
+      svg += `<circle cx="${x(S.frame.d)}" cy="${y(S.frame[key])}" r="5" fill="none" stroke="#222" stroke-width="1.4"/>`;
+    }
+    svg += `<text x="${W - mr - 2}" y="${mt + 10}" text-anchor="end" class="sel" fill="${col}">${esc(S.regime)} · ${r.classification}</text>`;
+  }
   svg += '</svg>';
   $('plot').innerHTML = svg;
 }
@@ -1082,14 +1145,18 @@ function showFrame(f) {
   if (S.anim) { S.anim = null; $('animBar').hidden = true; }
   const first = !S.frame;
   S.frame = f;
+  frameInfo(f);
+  if (first) buildScene(); else updateMatrices();
+  renderPlot();
+  renderGraphs();
+  updateControlStates();
+}
+function frameInfo(f) {
   const V = cellVolume(f.cell), V0 = cellVolume(S.st.cell);
   const dV = (100 * (V / V0 - 1));
   $('frameInfo').innerHTML = `d = ${f.d.toFixed(3)} · ${metricKey()} = ${(metricKey() === 'F' ? f.F : f.E).toExponential(1)} · ` +
     `a,b,c = ${f.cell.slice(0, 3).map((v) => v.toFixed(2)).join(', ')} Å · α,β,γ = ${f.cell.slice(3).map((v) => v.toFixed(1)).join(', ')}° · ` +
     `<b>V = ${V.toFixed(1)} Å³ (${dV >= 0 ? '+' : ''}${dV.toFixed(1)} %)</b>`;
-  if (first) buildScene(); else updateMatrices();
-  renderGraphs();
-  updateControlStates();
 }
 $('frameSlider').oninput = () => loadFrame().catch(fail);
 function stopFrame(rebuild = true) {
@@ -1351,8 +1418,9 @@ function renderEntries() {
     mark.className = 'mark';
     if (st?.activeJob) { mark.classList.add('running'); mark.title = 'deformation test running'; }
     else if (st?.result) {
-      mark.style.background = CLS_COLOR[st.result.verdict];
-      mark.title = `finite test: ${st.result.verdict}`;
+      const v = classifyResult(st.result).verdict;
+      mark.style.background = clsColor(v);
+      mark.title = `finite test: ${v}`;
     }
     const nm = document.createElement('span');
     nm.className = 'nm'; nm.textContent = e.label;

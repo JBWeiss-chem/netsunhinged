@@ -44,13 +44,13 @@ def cmd_analyze(args):
         if not args.no_finite:
             regimes = list(deform.REGIMES) + (list(deform.EXTENDED) if args.extended else [])
             _, res, verdict, dt = deform.run_all(
-                m, regimes=regimes, step=args.step, metric=args.metric,
-                thr=args.thr, thr2=args.thr2, modes=rig["macroscopic_modes"])
+                m, regimes=regimes, step=args.step, thr=args.thr, thr2=args.thr2, modes=rig["macroscopic_modes"])
             print(f"  finite deformation ({dt:.1f} s):")
-            key = "F" if args.metric == "relative" else "E"
             for name, r in res.items():
-                mx = max(p[key] for p in r["points"])
-                print(f"    {name:8s} {r['classification']:14s} max {key} = {mx:9.2e}  {r['detail']}")
+                mf = max(p["F"] for p in r["points"])
+                me = max(p["E"] for p in r["points"])
+                print(f"    {name:8s} {r['classification']:14s} max F = {mf:9.2e}  max E = {me:9.2e} A^2"
+                      f"  {r['detail']}")
             print(f"  VERDICT: {verdict.upper()}")
         rows.append((label, rig["n_macroscopic"], verdict))
     if len(rows) > 1:
@@ -72,9 +72,8 @@ def main(argv=None):
                    choices=["auto", "paper", "zeolite", "rigid", "bondbend", "donor_pivots"])
     a.add_argument("--options", help="JSON file with model options (as exported by the app)")
     a.add_argument("--step", type=float, default=0.02)
-    a.add_argument("--metric", default="relative", choices=["relative", "absolute"])
-    a.add_argument("--thr", type=float, default=0.01)
-    a.add_argument("--thr2", type=float, default=0.05)
+    a.add_argument("--thr", type=float, default=0.01, help="flexible threshold on F")
+    a.add_argument("--thr2", type=float, default=0.05, help="semi-flexible threshold on F")
     a.add_argument("--extended", action="store_true", help="also run fully relaxed regimes")
     a.add_argument("--no-finite", action="store_true", help="only infinitesimal analysis")
     args = p.parse_args(argv)

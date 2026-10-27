@@ -129,7 +129,7 @@
       <div id="modelInfo" class="muted">–</div>
     </section>
     <section class="card">
-      <h2><span class="num">4</span>Infinitesimal mechanisms <i class="info" data-tip="Exact linear analysis of the rigid-body model: deformations that, to first order, keep every rigid body undistorted and every joint closed (mechanisms), with the 6 cell-strain components as unknowns. They are free only within the model: in the real material, bending of the freed angles and torsions, non-bonded interactions and guests still resist them, so they are soft directions, not zero-energy ones. Cell-changing modes are candidates for breathing or shear; internal modes are local motions such as linker rotations. A first-order mode may still be blocked at larger amplitude: check it with the finite test ('follow infinitesimal modes')."></i></h2>
+      <h2><span class="num">4</span>Infinitesimal mechanisms <i class="info" data-tip="Exact linear analysis of the rigid-body model: deformations that, to first order, keep every rigid body undistorted and every joint closed (mechanisms), with the 6 cell-strain components as unknowns. They are free only within the model: in the real material, bending of the freed angles and torsions, non-bonded interactions and guests still resist them, so they are soft directions, not zero-energy ones. Cell-changing modes are candidates for breathing or shear: at least 1% of their motion (mean square) comes from the change of the cell (strain share). Internal modes are local motions such as linker rotations; in an experimental structure with slightly bent linkers some of them strain the cell a little, below that share. A first-order mode may still be blocked at larger amplitude: check it with the finite test ('follow infinitesimal modes')."></i></h2>
       <div id="infInfo" class="muted">–</div>
     </section>
     <section class="card">
@@ -138,12 +138,6 @@
         <span class="sl">range of d <i class="info" data-tip="Order parameter d scales the perturbed cell parameters: a* = d·a, γ* = d·γ … The paper scans 0.90–1.10. Smaller steps give smoother curves but take longer."></i></span>
         <span class="sv"><input type="number" id="dmin" value="0.90" step="0.01"> – <input type="number" id="dmax" value="1.10" step="0.01">
           step <input type="number" id="step" value="0.02" step="0.01" min="0.005"></span>
-        <span class="sl">metric <i class="info" data-tip="E is the joint mismatch: the mean squared gap (Å² per joint) between rigid bodies that should share an atom. Relative F = E_relaxed / E_affine: mismatch left after relaxing the bodies, divided by the mismatch before any relaxation. Scale-free: mechanisms of the model give F ≈ 1e-27…1e-4, rigid responses 0.1–1. Absolute E plays the role of the energy in the paper, but its scale differs from the paper's. Neither is a physical energy of the material."></i></span>
-        <span class="sv"><select id="metric">
-          <option value="relative">relative F = E/E_affine</option>
-          <option value="absolute">absolute E (Å²/joint)</option></select></span>
-        <span class="sl">thresholds <i class="info" data-tip="Flexible: metric below the first threshold over the whole range of d. Semi-flexible: below it only on one side of d = 1 or on a limited interval, or below the second threshold everywhere. Rigid: otherwise. Same logic as the paper (E < 0.01 / E′ < 0.05)."></i></span>
-        <span class="sv">flexible &lt; <input type="number" id="thr" value="0.01" step="0.005"> semi &lt; <input type="number" id="thr2" value="0.05" step="0.01"></span>
       </div>
       <label class="chk"><input type="checkbox" id="followModes" checked> follow infinitesimal modes
         <i class="info" data-tip="Ticked: the scan also follows the strain direction of each infinitesimal mechanism (rows 'Mode k').&#10;This is needed when a mechanism changes several cell parameters together in a way none of the 13 regimes allows."></i></label>
@@ -152,9 +146,17 @@
       <button id="run" class="primary" disabled>Run 13-regime analysis</button>
       <div id="progress" hidden><div></div></div>
       <div id="verdict"></div>
+      <div id="plotView" class="settings" hidden>
+        <span class="sl">plot <i class="info" data-tip="E is the joint mismatch: the mean squared gap (Å² per joint) between rigid bodies that should share an atom. Relative F = E_relaxed / E_affine: mismatch left after relaxing the bodies, divided by the mismatch before any relaxation. Scale-free: mechanisms of the model give F ≈ 1e-27…1e-4, rigid responses 0.1–1. Absolute E plays the role of the energy in the paper, but its scale differs from the paper's and grows with (d − 1)² and the distance between joints, so no fixed threshold applies to it. Both are calculated in every run; this only selects what is plotted. Neither is a physical energy of the material."></i></span>
+        <span class="sv"><select id="metric">
+          <option value="relative">relative F = E/E_affine</option>
+          <option value="absolute">absolute E (Å²/joint)</option></select></span>
+        <span class="sl">thresholds on F <i class="info" data-tip="Flexible: F below the first threshold over the whole range of d. Semi-flexible: below it only on one side of d = 1 or on a limited interval, or below the second threshold everywhere. Rigid: otherwise. Same logic as the paper (E < 0.01 / E′ < 0.05), applied to F whichever metric is plotted. Changing them reclassifies the finished run without recalculating it."></i></span>
+        <span class="sv">flexible &lt; <input type="number" id="thr" value="0.01" step="0.005" min="0"> semi &lt; <input type="number" id="thr2" value="0.05" step="0.01" min="0"></span>
+      </div>
       <div id="plot"></div>
       <div class="tablewrap tall"><table id="regTable"><thead><tr>
-        <th>regime</th><th>result</th><th>max</th><th title="unit-cell volume change over the scanned range">ΔV %</th></tr></thead><tbody></tbody></table></div>
+        <th>regime</th><th>result</th><th id="maxHead">max F</th><th title="unit-cell volume change over the scanned range">ΔV %</th></tr></thead><tbody></tbody></table></div>
       <button id="exportRes" class="small" hidden>Export results (JSON)</button>
     </section>
     <section class="card" id="graphCard" hidden>

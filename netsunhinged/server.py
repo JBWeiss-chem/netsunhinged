@@ -223,7 +223,9 @@ def model_payload(st: Structure, m: MechanicalModel, rig):
         "flex": m.flex.tolist(),
         "rigidity": {**{k: v for k, v in rig.items() if k not in ("macroscopic_modes", "internal_modes")},
                      "macroscopic_modes": [mode_out(md) for md in rig["macroscopic_modes"]],
-                     "internal_modes": [{"disp": _r(md["disp"], 3)} for md in rig["internal_modes"]]},
+                     "internal_modes": [{"disp": _r(md["disp"], 3), "eps": _r(md["eps"], 6),
+                                         "strain_share": md["strain_share"]}
+                                        for md in rig["internal_modes"]]},
     }
 
 
@@ -302,7 +304,8 @@ def _infinitesimal(m):
     """Infinitesimal analysis, skipped for models too large for the dense eigensolver."""
     if 6 * len(m.bodies) + 6 > Config.MAX_DOF:
         return {"skipped": True, "n_dof": 6 * len(m.bodies) + 6, "n_constraint_rows": 0, "rank": 0,
-                "n_mechanisms": 0, "n_macroscopic": 0, "n_internal": 0, "smallest_nonzero_sv": [],
+                "n_mechanisms": 0, "n_macroscopic": 0, "n_internal": 0, "n_internal_weak_strain": 0,
+                "smallest_nonzero_sv": [],
                 "macroscopic_modes": [], "internal_modes": []}
     return rigidity.analyze(m)
 
@@ -375,7 +378,6 @@ def _settings(raw):
     st = {"dmin": num("dmin", 0.9, 0.5, 0.999), "dmax": num("dmax", 1.1, 1.001, 1.5),
           "step": num("step", 0.02, 0.005, 0.1), "thr": num("thr", 0.01, 1e-12, 1.0),
           "thr2": num("thr2", 0.05, 1e-12, 1.0),
-          "metric": "absolute" if raw.get("metric") == "absolute" else "relative",
           "follow_modes": bool(raw.get("follow_modes", True)),
           "extended": bool(raw.get("extended", False)),
           "paper_regimes": bool(raw.get("paper_regimes", True))}
@@ -402,7 +404,7 @@ def _run_job(job, st, opts, settings):
 
         prob, res, verdict, dt = deform.run_all(
             m, regimes=regimes, dmin=settings["dmin"], dmax=settings["dmax"], step=settings["step"],
-            metric=settings["metric"], thr=settings["thr"], thr2=settings["thr2"],
+            thr=settings["thr"], thr2=settings["thr2"],
             modes=modes, progress=prog)
         job["prob"] = prob
         job["raw"] = res

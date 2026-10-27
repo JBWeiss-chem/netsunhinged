@@ -13,6 +13,7 @@ citations. CIFs without a catalogue entry are listed under "Other".
 | `HKUST-1_COD-4128729.cif` | Cu₃(btc)₂ (with water on Cu) | Scatena et al., J. Am. Chem. Soc. 2019, 141, 9382 | rigid |
 | `DMOF-1_COD-7038645.cif` | Zn₂(bdc)₂(dabco) | Kim et al., Dalton Trans. 2016, 45, 4187 | flexible: γ-shear |
 | `MIL-53-Ga_COD-7000776.cif` | Ga(OH)(bdc)·H₂O | Volkringer et al., Dalton Trans. 2009, 2241 | flexible (α-shear and the followed mode) |
+| `MIL-88B-2OH_COD-4107051.cif` | Fe₃O(bdc-(OH)₂)₃ with terminal H₂O/OH on Fe | Horcajada et al., J. Am. Chem. Soc. 2011, 133, 17839 | flexible: AB-C (a, b swell while c shrinks) and the followed a,b/c mode |
 | **ZIFs** | | | |
 | `ZIF-7_COD-4121899.cif` | Zn(bim)₂, SOD | Cai et al., J. Am. Chem. Soc. 2014, 136, 7961 | semi with all angles rigid; flexible once the Zn angles are freed |
 | `ZIF-8_COD-7111971.cif` | Zn(mim)₂, SOD | Shekhah et al., Chem. Commun. 2014, 50, 2089 | rigid |
@@ -26,6 +27,13 @@ Notes:
 * DMOF-1: the half-occupied carboxylate O (split across a mirror) is merged automatically; the dabco
   pillar is rotationally disordered and gives more C positions than dabco has, but it is a rigid body
   either way.
+* MIL-88B(2OH): the OH groups are disordered over all four ring positions (occupancy ½); they are
+  kept as full atoms, which does not matter because the ring is a rigid body. The tetramethyl
+  analogue (COD 4107052) is not included: its rings are disordered over two orientations without
+  disorder groups, so both orientations would be kept.
+* MIL-88B(2OH): in this structure (R1 = 0.18) the carboxylate C lies 0.03 Å off the ring axis.
+  The bent linkers couple four of the ring spins weakly to the cell (0.03–0.2 % strain share);
+  they are reported as internal mechanisms, and only the swelling mode as cell-changing.
 * Zeolite Rho: Si and Al share the T sites (mixed occupancy); each site is represented by Si.
 * Zeolite A, natrolite and Rho: the extra-framework cations (K⁺, Rb⁺, Na⁺, Cs⁺) are treated as guests.
 * rho-Zn(Im)₂ contains disordered guest molecules; *Remove guests* in the app speeds up loading.

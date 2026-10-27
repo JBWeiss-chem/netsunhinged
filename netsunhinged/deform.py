@@ -9,8 +9,13 @@ minimising the joint mismatch energy
 
 which plays the role of the harmonic bond energy of the paper (Eq. 4 of the SI).  E is a
 geometric joint mismatch, not a physical energy of the material.  A framework is classified as
-flexible with respect to a regime if E stays ~0 over the whole range of d, i.e. if the rigid
-bodies can follow the cell change without opening any joint.
+flexible with respect to a regime if the mismatch stays ~0 over the whole range of d, i.e. if the
+rigid bodies can follow the cell change without opening any joint.
+
+The classification uses the relative mismatch F = E / E_affine, which is scale-free.  Absolute E
+grows with (d - 1)^2 and with the distance between the joints, so a fixed threshold on E means
+something different for every structure and every range of d (and the paper's thresholds refer to
+its own energy function, not to A^2).  E is reported alongside for plotting.
 """
 
 from __future__ import annotations
@@ -281,8 +286,8 @@ class DeformationProblem:
 def classify(E, d, thr=0.01, thr2=0.05):
     """Paper criteria: flexible / semi-flexible (limited range or low) / rigid.
 
-    ``E`` is either the absolute energy (paper thresholds 0.01 / 0.05) or the relative
-    energy F = E / E_affine (default thresholds 0.01 / 0.05)."""
+    ``E`` is the relative mismatch F = E / E_affine along the scan (thresholds 0.01 / 0.05).
+    The undeformed point d = 1 (F = 0 by definition) is where the interval search starts."""
     E = np.asarray(E)
     d = np.asarray(d)
     if np.all(E < thr):
@@ -306,9 +311,9 @@ def classify(E, d, thr=0.01, thr2=0.05):
     return "rigid", ""
 
 
-def classify_regime(points, metric="relative", thr=0.01, thr2=0.05):
-    key = "F" if metric == "relative" else "E"
-    return classify([p[key] for p in points], [p["d"] for p in points], thr, thr2)
+def classify_regime(points, thr=0.01, thr2=0.05):
+    """(classification, detail) from F (the web app repeats this in app.js to reclassify)."""
+    return classify([p["F"] for p in points], [p["d"] for p in points], thr, thr2)
 
 
 def mode_strain(mode, L):
@@ -320,7 +325,7 @@ def mode_strain(mode, L):
 
 
 def run_all(m: MechanicalModel, regimes=None, dmin=0.90, dmax=1.10, step=0.02,
-            metric="relative", thr=0.01, thr2=0.05, modes=(), progress=None):
+            thr=0.01, thr2=0.05, modes=(), progress=None):
     """Run the deformation regimes (and optionally follow infinitesimal ``modes``).
 
     Returns (problem, results, verdict, seconds); results maps regime name to
@@ -343,13 +348,13 @@ def run_all(m: MechanicalModel, regimes=None, dmin=0.90, dmax=1.10, step=0.02,
     for name in regimes:
         pattern, desc = all_reg[name]
         pts = prob.run_regime(pattern, dvals, tick)
-        cls, detail = classify_regime(pts, metric, thr, thr2)
+        cls, detail = classify_regime(pts, thr, thr2)
         results[name] = {"pattern": pattern, "description": desc, "points": pts,
                          "classification": cls, "detail": detail}
     for k, mode in enumerate(modes):
         eps = mode_strain(mode, m.st.L)
         pts = prob.run_regime(None, dvals, tick, strain=eps)
-        cls, detail = classify_regime(pts, metric, thr, thr2)
+        cls, detail = classify_regime(pts, thr, thr2)
         results[f"Mode {k + 1}"] = {"pattern": "------", "strain": eps.tolist(),
                                     "description": f"follow infinitesimal mode {k + 1}: "
                                                    f"{mode['description']}",
