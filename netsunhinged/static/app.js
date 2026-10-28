@@ -802,7 +802,8 @@ function renderInfInfo() {
 // ------------------------------------------------------------------ animation
 function startAnim(title, disp, eps) {
   S.frame = null; $('frameBar').hidden = true;
-  S.anim = { disp, eps, t: 0, amp: +$('animAmp').value };
+  S.anim = { disp, eps, t: 0, amp: +$('animAmp').value, paused: false };
+  $('animPause').textContent = 'Pause';
   $('animTitle').textContent = title;
   $('animBar').hidden = false;
   buildScene();
@@ -810,7 +811,16 @@ function startAnim(title, disp, eps) {
 }
 function stopAnim() { S.anim = null; $('animBar').hidden = true; buildScene(); updateControlStates(); }
 $('animStop').onclick = stopAnim;
-$('animAmp').oninput = () => { if (S.anim) S.anim.amp = +$('animAmp').value; };
+$('animPause').onclick = () => {
+  if (!S.anim) return;
+  S.anim.paused = !S.anim.paused;
+  $('animPause').textContent = S.anim.paused ? 'Resume' : 'Pause';
+};
+$('animAmp').oninput = () => {
+  if (!S.anim) return;
+  S.anim.amp = +$('animAmp').value;
+  if (S.anim.paused) updateMatrices();
+};
 
 let lastT = performance.now();
 function loop(t) {
@@ -819,8 +829,9 @@ function loop(t) {
   const target = $('topology').checked ? 1 : 0;
   const blending = topoT !== target;
   if (blending) topoT = target > topoT ? Math.min(1, topoT + dt / 0.4) : Math.max(0, topoT - dt / 0.4);
-  if (S.anim) S.anim.t += dt;
-  if (S.st && (S.anim || blending)) updateMatrices();        // requests a render
+  const animating = S.anim && !S.anim.paused;
+  if (animating) S.anim.t += dt;
+  if (S.st && (animating || blending)) updateMatrices();        // requests a render
   if (needsRender) {
     needsRender = false;
     renderer.render(scene, camera);

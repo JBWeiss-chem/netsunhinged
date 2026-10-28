@@ -80,12 +80,12 @@
           <option value="role">framework / removed</option>
         </select>
       </label>
-      <label title="colour flexible-angle atoms and rotatable bonds (the chosen degrees of freedom, DOFs)"><input type="checkbox" id="showDof" checked> highlight DOFs</label>
+      <label title="colour flexible-angle atoms and rotatable bonds (the chosen degrees of freedom, DOFs)"><input type="checkbox" id="showDof"> highlight DOFs</label>
       <label class="sc">Cells <input type="number" id="scA" min="1" max="8" value="2">×<input type="number" id="scB" min="1" max="8" value="2">×<input type="number" id="scC" min="1" max="8" value="2">
         <button class="small" id="scCube" type="button" title="repeat counts that give a roughly cubic box">≈ cube</button>
         <span id="scInfo" class="muted"></span>
         <i class="info" data-tip="Number of unit cells shown along a, b and c (1–8 each). To keep the viewer responsive, at most 40 000 atoms are drawn; larger requests are refused. '≈ cube' picks repeat counts that give a roughly cubic box, useful for needle- or plate-shaped cells."></i></label>
-      <label><input type="checkbox" id="showJoints" checked> joints</label>
+      <label><input type="checkbox" id="showJoints"> joints</label>
       <label><input type="checkbox" id="showH" checked> H atoms</label>
       <label><input type="checkbox" id="showGuests" checked> guests</label>
       <label title="draw bonded atoms just outside the cell"><input type="checkbox" id="boundaryAtoms" checked> boundary atoms</label>
@@ -104,9 +104,10 @@
     <div id="legend"></div>
     <div id="animBar" hidden>
       <span id="animTitle"></span>
-      <label>amplitude <input type="range" id="animAmp" min="0.1" max="3" step="0.1" value="1"></label>
+      <label>amplitude <input type="range" id="animAmp" min="0.1" max="10" step="0.1" value="1"></label>
       <select class="fmt" id="animFmt" title="export format"></select>
       <button class="small" id="animExport">Export</button>
+      <button class="small" id="animPause">Pause</button>
       <button class="small" id="animStop">Stop</button>
     </div>
     <div id="frameBar" hidden>
