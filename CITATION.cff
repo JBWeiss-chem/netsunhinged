@@ -8,8 +8,8 @@ authors:
     affiliation: "TU Dortmund University"
     # orcid: "https://orcid.org/0000-0000-0000-0000"
 license: MIT
-version: 0.1.0
-date-released: "2026-10-23"
+version: 0.1.1
+date-released: "2026-10-29"
 repository-code: "https://github.com/JBWeiss-chem/netsunhinged"
 keywords:
   - metal-organic frameworks

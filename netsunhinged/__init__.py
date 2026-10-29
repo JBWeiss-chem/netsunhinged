@@ -10,7 +10,7 @@ from .structure import Structure
 from .model import MechanicalModel, ModelOptions, preset
 
 __all__ = ["read_cif", "Structure", "MechanicalModel", "ModelOptions", "preset", "load"]
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 
 def load(path, block=0):
